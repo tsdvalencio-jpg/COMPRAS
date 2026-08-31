@@ -8,7 +8,7 @@
   const previous = window.MercadorPDFImporter || {};
   if (previous.__professionalConsensusEngineInstalled) return;
 
-  const ENGINE_VERSION = '7.2.0-professional-multimodal-paged-pdf';
+  const ENGINE_VERSION = '7.3.0-optional-ai-local-fallback';
   const KNOWLEDGE_SCHEMA_VERSION = 'mercador.encarte.knowledge.v7';
   const FIREBASE_SDK_VERSION = '12.16.0';
   const PRIMARY_MODEL = 'gemini-3.7-flash';
@@ -1015,13 +1015,96 @@ REGRAS ABSOLUTAS:
     };
   }
 
+
+  function isInputConfigurationError(error) {
+    const message = String(error?.message || error || '');
+    return /Use um tipo de entrada por vez|Selecione PDF\/imagem\/TXT|Selecione somente um arquivo|Formato não suportado|texto do encarte está vazio/i.test(message);
+  }
+
+  function fallbackReason(error) {
+    const message = clean(error?.message || error || 'motor multimodal indisponível');
+    if (/quota|429|resource.?exhausted/i.test(message)) return 'cota temporariamente indisponível';
+    if (/403|permission|unauthorized|api.*not.*enabled|failed.?precondition/i.test(message)) return 'serviço multimodal não autorizado/disponível';
+    if (/network|fetch|offline|failed to load/i.test(message)) return 'serviço multimodal sem conexão';
+    if (/413|too large|request.*size/i.test(message)) return 'fonte acima do limite multimodal';
+    return message.slice(0, 180) || 'motor multimodal indisponível';
+  }
+
+  function forceSupervisedFallback(result, reason) {
+    const out = result && typeof result === 'object' ? result : {};
+    const candidates = Array.isArray(out.candidates) ? out.candidates : [];
+    out.candidates = candidates.map((candidate) => ({
+      ...candidate,
+      automationSafe: false,
+      aiFallback: true,
+      riskFlags: unique([...(candidate.riskFlags || []), 'ai_unavailable_local_review']),
+      evidence: unique([...(candidate.evidence || []), 'análise local preservada para conferência; motor multimodal opcional indisponível'])
+    }));
+    out.aiFallback = true;
+    out.aiFallbackReason = reason;
+    out.extractionMode = `${out.extractionMode || 'local'}+supervised-local-fallback`;
+    out.engineVersion = `${out.engineVersion || 'local'}+optional-ai-fallback`;
+    out.knowledgeMetrics = out.knowledgeMetrics || {};
+    out.knowledgeMetrics.modes = unique([...(out.knowledgeMetrics.modes || []), 'local-supervised-fallback', 'ai-optional']);
+    out.knowledgeMetrics.automatic = 0;
+    out.knowledgeMetrics.candidates = out.candidates.length;
+
+    if (out.knowledgeDocument && typeof out.knowledgeDocument === 'object') {
+      out.knowledgeDocument.extraction = {
+        ...(out.knowledgeDocument.extraction || {}),
+        aiOptional: true,
+        aiFallback: true,
+        aiFallbackReason: reason,
+        fallbackMode: 'local-supervised',
+        automaticPublicationAllowed: false
+      };
+      if (Array.isArray(out.knowledgeDocument.offerCandidates)) {
+        const byId = new Map(out.candidates.map((c) => [String(c.id || ''), c]));
+        out.knowledgeDocument.offerCandidates = out.knowledgeDocument.offerCandidates.map((offer) => {
+          const candidate = byId.get(String(offer.id || ''));
+          return {
+            ...offer,
+            automationSafe: false,
+            riskFlags: unique([...(offer.riskFlags || []), 'ai_unavailable_local_review']),
+            confidence: candidate ? candidate.confidence : offer.confidence
+          };
+        });
+      }
+      out.knowledgeDocument.resolvedOffers = [];
+    }
+    return out;
+  }
+
+  async function analyzeWithLocalFallback(source, options, onProgress, originalError) {
+    if (!previousAnalyzeSource && !previousAnalyzeFile) throw professionalError(originalError);
+    const reason = fallbackReason(originalError);
+    console.warn('[Mercador IA] Motor multimodal opcional indisponível; usando análise local supervisionada.', originalError);
+    if (onProgress) onProgress({ pageNumber: 1, numPages: 1, percent: 6, mode: 'local-fallback-start', reason });
+
+    let result;
+    if (previousAnalyzeSource) {
+      result = await previousAnalyzeSource(source, options, (progress = {}) => {
+        if (onProgress) onProgress({ ...progress, mode: progress.mode || 'local-fallback-running', aiFallback: true });
+      });
+    } else {
+      const files = [...(source?.files || [])].filter(Boolean);
+      if (files.length !== 1 || String(source?.text || '').trim()) throw professionalError(originalError);
+      result = await previousAnalyzeFile(files[0], options, onProgress);
+    }
+
+    activeSource = { type: 'legacy', files: [], text: '', hash: '', pdfDoc: null };
+    result = forceSupervisedFallback(result, reason);
+    if (onProgress) onProgress({ pageNumber: Number(result.numPages || 1), numPages: Number(result.numPages || 1), percent: 100, mode: 'local-fallback-complete', reason });
+    return result;
+  }
+
   function professionalError(error) {
     const message = String(error?.message || error || '');
-    if (/quota|429|resource.?exhausted/i.test(message)) return new Error('A cota gratuita do motor de IA foi atingida temporariamente. Nenhuma promoção foi criada. Tente novamente mais tarde.');
-    if (/403|permission|unauthorized|api.*not.*enabled|firebase.?ai|failed.?precondition|app.?check/i.test(message)) return new Error('Firebase AI Logic não está autorizado/disponível para este app. Nenhuma promoção foi criada; o sistema não usou OCR impreciso como fallback.');
-    if (/413|too large|request.*size/i.test(message)) return new Error('O arquivo é grande demais para análise multimodal inline. Nenhuma promoção foi criada.');
-    if (/network|fetch|offline|failed to load/i.test(message)) return new Error('Falha de rede ao consultar o motor profissional. Nenhuma promoção foi criada.');
-    return error instanceof Error ? error : new Error(message || 'Falha no motor profissional. Nenhuma promoção foi criada.');
+    if (/quota|429|resource.?exhausted/i.test(message)) return new Error('O motor multimodal está temporariamente sem cota.');
+    if (/403|permission|unauthorized|api.*not.*enabled|firebase.?ai|failed.?precondition/i.test(message)) return new Error('O motor multimodal opcional não está disponível para este app.');
+    if (/413|too large|request.*size/i.test(message)) return new Error('A fonte ultrapassa o limite da leitura multimodal.');
+    if (/network|fetch|offline|failed to load/i.test(message)) return new Error('Falha de rede na leitura multimodal.');
+    return error instanceof Error ? error : new Error(message || 'Falha no motor multimodal.');
   }
 
   async function analyzeSource(source = {}, options = {}, onProgress) {
@@ -1029,8 +1112,14 @@ REGRAS ABSOLUTAS:
       const prepared = await prepareSource(source, options);
       return await analyzePrepared(prepared, options, onProgress);
     } catch (error) {
-      console.error('[Mercador IA] Document Intelligence profissional falhou:', error);
-      throw professionalError(error);
+      console.error('[Mercador IA] Leitura multimodal opcional falhou:', error);
+      if (isInputConfigurationError(error)) throw error;
+      try {
+        return await analyzeWithLocalFallback(source, options, onProgress, error);
+      } catch (fallbackError) {
+        console.error('[Mercador IA] Análise local de contingência também falhou:', fallbackError);
+        throw fallbackError instanceof Error ? fallbackError : professionalError(error);
+      }
     }
   }
 
@@ -1149,5 +1238,5 @@ REGRAS ABSOLUTAS:
   };
 
   window.MercadorPDFImporter = api;
-  console.info(`[Mercador IA] Document Intelligence profissional ${ENGINE_VERSION} ativo: PDF + imagem + texto, consenso triplo e fail-closed.`);
+  console.info(`[Mercador IA] Document Intelligence ${ENGINE_VERSION}: IA multimodal opcional + análise local supervisionada de contingência.`);
 })();

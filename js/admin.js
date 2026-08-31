@@ -555,7 +555,7 @@
       const singlePdf = files.length === 1 && (files[0].type === 'application/pdf' || /\.pdf$/i.test(files[0].name));
       const largePdf = singlePdf && Number(files[0].size || 0) > 11.5 * 1024 * 1024;
       box.classList.add('ok');
-      box.innerHTML = `<strong>${files.length} arquivo${files.length===1?'':'s'} pronto${files.length===1?'':'s'} para leitura</strong><span>${M.escapeHtml(types.join(' + '))}${url ? ` · origem: ${M.escapeHtml(url)}` : ''}. ${largePdf ? 'PDF grande detectado: ele será dividido e otimizado automaticamente página por página. Não precisa compactar. ' : ''}A fonte visual será a autoridade para produto e preço.</span>`;
+      box.innerHTML = `<strong>${files.length} arquivo${files.length===1?'':'s'} pronto${files.length===1?'':'s'} para leitura</strong><span>${M.escapeHtml(types.join(' + '))}${url ? ` · origem: ${M.escapeHtml(url)}` : ''}. ${largePdf ? 'PDF grande detectado: não precisa compactar; o sistema tentará leitura multimodal por páginas e, se indisponível, continuará com análise local supervisionada. ' : ''}A fonte visual será a autoridade para produto e preço.</span>`;
       return;
     }
     if (text) {
@@ -630,6 +630,7 @@
     image_grid_incomplete: 'grade visual do encarte não foi reconstruída por completo',
     invalid_source_geometry: 'região visual do card não foi localizada com segurança',
     source_geometry_conflict: 'as leituras discordaram sobre a posição do card'
+    ,ai_unavailable_local_review: 'motor multimodal opcional indisponível — conferência local obrigatória'
   };
 
   function automationThreshold() {
@@ -834,7 +835,9 @@
           'ai-pdf-page-b':`página ${progress.pageNumber}: 2ª leitura independente`,
           'ai-pdf-page-c':`página ${progress.pageNumber}: auditoria final`,
           'pdf-auto-render':`preparando automaticamente a página ${progress.pageNumber}`,
-          'ai-professional-complete':'conciliação concluída'
+          'ai-professional-complete':'conciliação concluída',
+          'local-fallback-start':'motor multimodal indisponível; continuando com análise local supervisionada',
+          'local-fallback-complete':'análise local supervisionada concluída'
         };
         if (aiStages[mode]) {
           setPdfProgress(progress.percent, `${aiStages[mode]} · ${progress.numPages || 1} página${Number(progress.numPages || 1) === 1 ? '' : 's'}`);
@@ -875,6 +878,8 @@
         const remaining = state.pdfImport.candidates.filter((x) => !x.published && !x.ignored && x.automationDecision !== 'auto').length;
         setPdfProgress(100, `Automação concluída. ${remaining} exceção${remaining === 1 ? '' : 'ões'} aguardando revisão.`);
         M.toast(`Automação concluída. Revise somente ${remaining} exceção${remaining === 1 ? '' : 'ões'}.`, remaining ? 'info' : 'success', 7000);
+      } else if (result.aiFallback) {
+        M.toast(`Análise local concluída: ${reviewCount} oferta${reviewCount === 1 ? '' : 's'} para conferência. Nenhuma publicação automática foi liberada.`, 'info', 7500);
       } else {
         M.toast(`Análise concluída: ${autoCount} automáticas e ${reviewCount} para supervisão.`, 'success', 6500);
       }

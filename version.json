@@ -1,8 +1,8 @@
 {
   "name": "Mercador IA",
-  "version": "3.7.0",
-  "build": "mercador-ia-v3.7-large-pdf-auto-pages",
+  "version": "3.8.0",
+  "build": "mercador-ia-v3.8-optional-ai-safe-fallback",
   "date": "2026-08-31",
-  "documentEngine": "7.2.0-professional-multimodal-paged-pdf",
+  "documentEngine": "7.3.0-optional-ai-local-fallback",
   "knowledgeSchema": "mercador.encarte.knowledge.v7"
 }
