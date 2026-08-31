@@ -8,7 +8,7 @@
   const previous = window.MercadorPDFImporter || {};
   if (previous.__professionalConsensusEngineInstalled) return;
 
-  const ENGINE_VERSION = '7.4.0-local-consensus-certifier';
+  const ENGINE_VERSION = '7.5.0-card-proof-certifier';
   const KNOWLEDGE_SCHEMA_VERSION = 'mercador.encarte.knowledge.v7';
   const FIREBASE_SDK_VERSION = '12.16.0';
   const PRIMARY_MODEL = 'gemini-3.7-flash';
@@ -1058,6 +1058,65 @@ REGRAS ABSOLUTAS:
     return clean(value).replace(/\s+/g, ' ').trim();
   }
 
+  function productIdentityProof(value, candidate = {}) {
+    const raw = cleanProductForCertification(value);
+    const folded = fold(raw);
+    const normalized = normalizeName(raw);
+    const parts = normalized.split(/\s+/).filter(Boolean);
+    if (!raw || parts.length < 2 || parts.length > 16) return { safe:false, reason:'descrição curta ou extensa demais' };
+    if (/R\$|\b\d{1,4}[,.]\d{2}\b/.test(raw)) return { safe:false, reason:'descrição contém preço' };
+    if (INSTITUTIONAL_RE.test(raw) || /^(?:LIMITE|POR\s+CLIENTE|NESTA\s+EMBALAGEM|UNIDADE\s+SAI|CADA|OFERTAS?\b)/i.test(raw)) {
+      return { safe:false, reason:'texto institucional/condição não é identidade de produto' };
+    }
+    if (/^(?:E|DE|DO|DA|DOS|DAS|COM|SEM|C\/|S\/)\b/i.test(raw)
+      || /^\d+(?:[,.]\d+)?\s*(?:KG|G|GR|ML|L|LT|LTS|UN|UND)\b/i.test(raw)) {
+      return { safe:false, reason:'descrição começa por fragmento/embalagem e não pelo produto' };
+    }
+
+    // Embalagem declarada pelo candidato precisa concordar com a medida que aparece no nome.
+    const measure = (text) => {
+      const m = clean(text).toUpperCase().match(/\b(\d+(?:[,.]\d+)?)\s*(KG|G|GR|ML|L|LT|LTS|UN|UND)\b/);
+      if (!m) return '';
+      const aliases = { GR:'G', LT:'L', LTS:'L', UND:'UN' };
+      const unit = aliases[m[2]] || m[2];
+      return `${String(m[1]).replace(',', '.')}|${unit}`;
+    };
+    const nameMeasure = measure(raw), packageMeasure = measure(candidate?.packageText || '');
+    if (nameMeasure && packageMeasure && nameMeasure !== packageMeasure) {
+      return { safe:false, reason:'embalagem do nome conflita com a embalagem detectada' };
+    }
+
+    // Detecta OCR fragmentado do tipo "VINHO VINHO AUR AURORA ORA..." sem bloquear
+    // descrições comerciais normais. Dois ou mais sinais independentes de fragmentação
+    // tornam a identidade imprópria para publicação automática.
+    let fragments = 0;
+    const exact = new Map();
+    parts.forEach((token) => exact.set(token, (exact.get(token) || 0) + 1));
+    exact.forEach((count, token) => { if (count > 1 && token.length >= 3) fragments += count - 1; });
+    for (let i = 0; i < parts.length; i += 1) {
+      for (let j = i + 1; j <= Math.min(parts.length - 1, i + 4); j += 1) {
+        const a = parts[i], b = parts[j];
+        if (a === b || a.length < 3 || b.length < 3) continue;
+        const shorter = a.length <= b.length ? a : b;
+        const longer = a.length <= b.length ? b : a;
+        if (longer.startsWith(shorter) && shorter.length / longer.length >= .45) fragments += 1;
+      }
+    }
+    if (fragments >= 2 || (fragments >= 1 && parts.length >= 7)) return { safe:false, reason:'descrição apresenta fragmentação/repetição de OCR' };
+
+    const packageEvidence = clean(candidate?.packageText || '') || /\b\d+(?:[,.]\d+)?\s*(?:KG|G|GR|ML|L|LT|LTS|UN|UND)\b/i.test(raw)
+      || /\b(?:KG|CADA|UNIDADE)\b/i.test(clean(candidate?.conditions || ''));
+    if (parts.length === 2 && !packageEvidence) return { safe:false, reason:'descrição genérica sem embalagem/unidade suficiente' };
+
+    const genericIdentityTokens = new Set(['KG','G','GR','ML','L','LT','LTS','UN','UND','UNIDADE','UNIDADES','CADA','SABOR','SABORES','TIPO','TIPOS','FRAGRANCIA','FRAGRANCIAS','TRADICIONAL','NEUTRO']);
+    const meaningful = parts.filter((token) => !genericIdentityTokens.has(token) && !/^\d/.test(token));
+    if (meaningful.length < 2) return { safe:false, reason:'identidade comercial incompleta' };
+    if (meaningful.length === 2 && !packageEvidence && parts.length <= 3) {
+      return { safe:false, reason:'descrição curta sem embalagem/unidade suficiente' };
+    }
+    return { safe:true, reason:'identidade comercial consistente' };
+  }
+
   function localCertification(candidate, result, sourceType) {
     const risks = new Set(candidate?.riskFlags || []);
     const hardBlocked = [...risks].some((risk) => LOCAL_HARD_RISKS.has(risk));
@@ -1078,18 +1137,22 @@ REGRAS ABSOLUTAS:
     const detectedPrices = Array.isArray(candidate?.detectedPrices) ? candidate.detectedPrices.filter((x) => Number.isFinite(Number(x)) && Number(x) > 0) : [];
     const clubPair = candidate?.priceKind === 'club' && Number(candidate?.previousPrice) > price;
     const priceShapeSafe = detectedPrices.length <= 1 || (detectedPrices.length === 2 && clubPair);
-    const identitySafe = tokens.length >= 2 && tokens.length <= 16 && !/R\$|\b\d{1,4}[,.]\d{2}\b/.test(productName);
+    const identityProof = productIdentityProof(productName, candidate);
+    const identitySafe = identityProof.safe;
     const periodSafe = validLocalPeriod(candidate, result);
     const geometrySafe = hasUsableGeometry(candidate);
     const baseSafe = !hardBlocked && Number.isFinite(price) && price > 0 && price < 10000 && identitySafe && periodSafe && priceShapeSafe;
 
     if (!baseSafe || textSource) {
-      return { safe:false, confidence, tier:'review', reason:'evidência insuficiente para automação' };
+      return { safe:false, confidence, tier:'review', reason: identitySafe ? 'evidência insuficiente para automação' : identityProof.reason };
     }
 
     // Regra 1: se o motor documental original já provou automação, preservamos a decisão.
     // Isso exige que todas as travas críticas continuem limpas nesta camada.
     if (originalAuto) {
+      if (association < .72) {
+        return { safe:false, confidence, tier:'supervised', reason:'associação produto/preço abaixo do mínimo de prova' };
+      }
       const certified = Math.max(.99, confidence);
       return { safe:true, confidence:Math.min(.997, certified), tier:'native-certified', reason:'automação já comprovada pelo motor documental e revalidada sem riscos críticos' };
     }
@@ -1158,9 +1221,9 @@ REGRAS ABSOLUTAS:
     out.aiFallback = false;
     out.aiFallbackReason = '';
     out.extractionMode = `${out.extractionMode || 'local'}+local-consensus-certifier`;
-    out.engineVersion = `${out.engineVersion || 'local'}+7.4.0-local-consensus-certifier`;
+    out.engineVersion = `${out.engineVersion || 'local'}+7.5.0-card-proof-certifier`;
     out.knowledgeMetrics = out.knowledgeMetrics || {};
-    out.knowledgeMetrics.modes = unique([...(out.knowledgeMetrics.modes || []), 'local-consensus-certifier']);
+    out.knowledgeMetrics.modes = unique([...(out.knowledgeMetrics.modes || []), 'card-proof-certifier']);
     out.knowledgeMetrics.automatic = automatic;
     out.knowledgeMetrics.candidates = out.candidates.length;
 

@@ -14,7 +14,7 @@
   }
   if (previous.__cardFirstResolverInstalled) return;
 
-  const RESOLVER_VERSION = '5.0.0-card-first';
+  const RESOLVER_VERSION = '5.1.0-card-proof';
   const KNOWLEDGE_SCHEMA_VERSION = 'mercador.encarte.knowledge.v5';
   const previousAnalyzeFile = previous.analyzeFile.bind(previous);
   const previousDownloadKnowledgeJson = typeof previous.downloadKnowledgeJson === 'function'
@@ -529,49 +529,67 @@
     const card = match?.card || null;
 
     if (!card) {
-      risks.add('association_disagreement');
-      evidence.add('Card Resolver não encontrou um card documental inequívoco para este candidato');
-      output.automationSafe = false;
-      output.structuralSafe = false;
-      output.confidence = Math.min(numberOr(output.confidence, .7), .89);
+      const preHardBlocked = [...risks].some((risk) => HARD_RISK.has(risk));
+      evidence.add('Card Resolver não encontrou um segundo card inequívoco; a decisão do motor documental anterior foi preservada quando já estava comprovada');
+      // Falta de uma segunda hipótese NÃO é contradição. A V5.0 transformava ausência de
+      // confirmação do Card Resolver em reprovação e destruía ofertas que o motor nativo já
+      // havia comprovado. Só bloqueamos aqui se já existia risco crítico antes desta camada.
+      if (preHardBlocked) {
+        output.automationSafe = false;
+        output.structuralSafe = false;
+        output.confidence = Math.min(numberOr(output.confidence, .7), .89);
+      }
       output.riskFlags = [...risks];
       output.evidence = [...evidence];
-      output.cardResolution = { status: 'unmatched', resolverVersion: RESOLVER_VERSION };
+      output.cardResolution = { status: preHardBlocked ? 'unmatched_conflict' : 'unmatched_preserved', resolverVersion: RESOLVER_VERSION };
       return output;
     }
 
+    const baseWasAuto = output.automationSafe === true;
+    const baseWasStructural = output.structuralSafe === true;
+    const preExistingRisks = new Set(output.riskFlags || []);
+    const preHardBlocked = [...preExistingRisks].some((risk) => HARD_RISK.has(risk));
     const description = descriptionDecision(output.productName, card);
     const priceAgreement = Math.abs(Number(output.price) - Number(card.price)) < .011;
     const cardSupport = Math.max(description.originalInCard, tokenSimilarity(output.productName, card.productHypothesis));
+    const cardTextQuality = lineTextQuality(card.productHypothesis || '');
+    const cardCanContradict = card.confidence >= .88 && match.score >= .70 && cardSupport >= .58 && cardTextQuality >= 8;
 
     if (!priceAgreement) risks.add('price_cluster_disagreement');
-    if (description.conflict) risks.add('knowledge_legacy_description_conflict');
-    if (isInstitutional(description.name)) risks.add('header_contamination');
-    if (!card.currencyExplicit && card.pricePasses < 2) risks.add('ocr_price_without_currency');
-    if (card.priceConfidence > 0 && card.priceConfidence < .72) risks.add('ocr_low_price_confidence');
-    if (!card.productHypothesis || lineTextQuality(card.productHypothesis) < 8) risks.add('ocr_low_description_quality');
-    if (match.score < .58) risks.add('ocr_block_ownership_weak');
+    // O card só pode derrubar uma identidade anterior quando ele próprio é uma evidência forte.
+    // Em V5.0, cards contaminados/recortados de forma ruim geravam 100+ falsos conflitos.
+    if (description.conflict && cardCanContradict) risks.add('knowledge_legacy_description_conflict');
+    else if (description.conflict) evidence.add('Card secundário inconclusivo; identidade anterior preservada');
+    if (isInstitutional(description.name) && cardCanContradict) risks.add('header_contamination');
+    if (!card.currencyExplicit && card.pricePasses < 2 && !baseWasAuto) risks.add('ocr_price_without_currency');
+    if (card.priceConfidence > 0 && card.priceConfidence < .72 && !baseWasAuto) risks.add('ocr_low_price_confidence');
+    if ((!card.productHypothesis || cardTextQuality < 8) && !baseWasAuto) risks.add('ocr_low_description_quality');
+    if (match.score < .58 && !baseWasAuto) risks.add('ocr_block_ownership_weak');
 
-    if (description.improved && !description.conflict) {
+    if (description.improved && !description.conflict && cardCanContradict) {
       output.productName = description.name.slice(0, 160);
       evidence.add(description.trimmed
         ? 'Card documental removeu texto que pertencia a outra região da página'
         : 'Card documental completou a descrição usando somente texto contido no mesmo bloco visual');
-      // Uma correção de identidade nunca vira publicação automática no mesmo passe.
-      // O dado corrigido continua visível ao administrador, mas exige supervisão.
+      // Alteração de identidade exige nova certificação; nunca herda o automático antigo.
       output.automationSafe = false;
       output.structuralSafe = false;
       if (description.trimmed) risks.add('knowledge_legacy_description_conflict');
     }
 
     const packageText = extractPackage(card.productHypothesis || card.rawText);
-    if (packageText && (!output.packageText || tokenCoverage(output.packageText, card.rawText) < .55)) output.packageText = packageText.slice(0, 100);
-    if (card.conditions && !output.conditions) output.conditions = card.conditions.slice(0, 250);
+    // Nunca deixa um card secundário fraco sobrescrever embalagem/condição já comprovada
+    // pelo motor de origem. Isso era uma das causas de falsos conflitos na V5.0.
+    if (cardCanContradict && packageText && (!output.packageText || tokenCoverage(output.packageText, card.rawText) < .55)) {
+      output.packageText = packageText.slice(0, 100);
+    }
+    if (cardCanContradict && card.conditions && !output.conditions) output.conditions = card.conditions.slice(0, 250);
 
     evidence.add('produto e preço vinculados ao mesmo card documental antes da resolução da oferta');
     evidence.add(`card ${card.id} · confiança estrutural ${Math.round(card.confidence * 100)}%`);
 
     const hardBlocked = [...risks].some((risk) => HARD_RISK.has(risk));
+    const newHardConflict = [...risks].some((risk) => HARD_RISK.has(risk) && !preExistingRisks.has(risk));
     const existingConfidence = clamp(numberOr(output.confidence, .6), 0, 1);
     const resolvedConfidence = clamp(
       existingConfidence * .44
@@ -588,9 +606,16 @@
     output.clusterCoherence = hardBlocked ? Math.min(numberOr(output.clusterCoherence, 0), .80) : Math.max(numberOr(output.clusterCoherence, 0), cardSupport, card.confidence);
     output.descriptionAgreement = hardBlocked ? Math.min(numberOr(output.descriptionAgreement, 0), .79) : Math.max(numberOr(output.descriptionAgreement, 0), cardSupport);
     output.descriptionCompleteness = Math.max(numberOr(output.descriptionCompleteness, 0), clamp(tokens(output.productName).length / 8, .40, 1));
-    output.knowledgeCardText = card.rawText || output.knowledgeCardText || output.productName;
+    // Só substitui a geometria/texto de origem quando o card secundário é forte. Caso
+    // contrário preserva exatamente o recorte que gerou a prova do motor anterior.
+    if (cardCanContradict) {
+      output.knowledgeCardText = card.rawText || output.knowledgeCardText || output.productName;
+      output.sourceBox = card.cardBox || output.sourceBox || null;
+    } else {
+      output.knowledgeCardText = output.knowledgeCardText || output.productName || card.rawText;
+      output.sourceBox = output.sourceBox || card.cardBox || null;
+    }
     output.knowledgeOwnerConfidence = match.score;
-    output.sourceBox = card.cardBox || output.sourceBox || null;
     output.cardId = card.id;
     output.cardConfidence = card.confidence;
     output.cardResolutionScore = match.score;
@@ -605,10 +630,14 @@
     };
     output.riskFlags = unique([...risks]);
     output.evidence = unique([...evidence]);
-    output.structuralSafe = !hardBlocked && card.confidence >= .84 && match.score >= .66 && cardSupport >= .62
-      && output.structuralSafe !== false;
-    output.automationSafe = !hardBlocked && card.confidence >= .90 && match.score >= .74 && cardSupport >= .72
-      && output.automationSafe !== false;
+    const cardStructuralProof = !hardBlocked && card.confidence >= .84 && match.score >= .66 && cardSupport >= .62;
+    const cardAutomaticProof = !hardBlocked && card.confidence >= .90 && match.score >= .74 && cardSupport >= .72;
+    // Preserve uma prova forte já obtida pelo motor anterior. O Card Resolver é uma segunda
+    // evidência: ele pode bloquear se provar uma contradição, mas não pode rebaixar um item
+    // apenas porque seu próprio recorte ficou fraco.
+    output.structuralSafe = !hardBlocked && (baseWasStructural || cardStructuralProof);
+    output.automationSafe = !hardBlocked && !newHardConflict && (baseWasAuto || cardAutomaticProof);
+    output.cardProofSafe = cardAutomaticProof;
     output.extractionMode = `${clean(output.extractionMode || 'knowledge-json')}+card-first`;
     return output;
   }
