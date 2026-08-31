@@ -1,0 +1,94 @@
+.admin-layout { display:grid; grid-template-columns:270px minmax(0,1fr); min-height:calc(100vh - 73px); }
+.admin-sidebar { position:sticky; top:73px; align-self:start; height:calc(100vh - 73px); border-right:1px solid var(--line); background:rgba(9,24,16,.7); padding:18px 12px; overflow:auto; }
+.admin-nav { display:grid; gap:6px; }
+.admin-nav button { width:100%; text-align:left; border:1px solid transparent; border-radius:12px; background:transparent; padding:12px 13px; color:#b7d0c0; cursor:pointer; font-weight:800; display:flex; align-items:center; gap:10px; }
+.admin-nav button.active { color:#eafff1; background:rgba(64,223,135,.1); border-color:rgba(64,223,135,.18); }
+.admin-content { min-width:0; padding:clamp(18px,3vw,32px); }
+.admin-section { display:none; }
+.admin-section.active { display:block; }
+.admin-toolbar { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+.toolbar-left, .toolbar-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.searchbox { min-width:min(100%,280px); }
+.admin-mobile-nav { display:none; }
+@media(max-width:900px){
+  .admin-layout{display:block}.admin-sidebar{display:none}.admin-content{padding:14px 9px 90px}
+  .admin-mobile-nav{display:flex; position:fixed; z-index:55; left:8px; right:8px; bottom:8px; padding:7px; gap:5px; overflow-x:auto; border:1px solid var(--line); border-radius:16px; background:rgba(8,20,14,.95); backdrop-filter:blur(16px); box-shadow:var(--shadow)}
+  .admin-mobile-nav button{flex:0 0 auto; min-width:72px; border:0; border-radius:11px; padding:9px 10px; background:transparent; color:var(--muted); font-size:.69rem; font-weight:850}
+  .admin-mobile-nav button.active{background:rgba(64,223,135,.12);color:#dfffea}
+}
+
+/* Mercador IA V1.5 - importacao responsavel de encartes PDF */
+.pdf-import-safety { border-color:rgba(255,203,87,.25); background:linear-gradient(180deg, rgba(73,55,15,.42), rgba(24,31,20,.96)); }
+.pdf-import-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+.pdf-import-progress { height:10px; margin-top:14px; overflow:hidden; border-radius:999px; border:1px solid var(--line); background:#07120d; }
+.pdf-import-progress > div { width:0%; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--brand-dark),var(--brand)); transition:width .18s ease; }
+.pdf-candidate-card { position:relative; }
+.pdf-candidate-card.verified { border-color:rgba(64,223,135,.3); }
+.pdf-candidate-card.published { border-color:rgba(110,184,255,.35); background:rgba(110,184,255,.045); }
+.pdf-candidate-card.ignored { opacity:.55; }
+.pdf-candidate-main { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:start; }
+.pdf-price-stack { text-align:right; min-width:120px; }
+.pdf-price-main { display:block; color:var(--brand); font-size:1.4rem; font-weight:950; letter-spacing:-.04em; }
+.pdf-price-old { display:block; color:var(--muted); font-size:.78rem; text-decoration:line-through; margin-top:2px; }
+.pdf-confidence { display:flex; align-items:center; gap:8px; margin-top:10px; }
+.pdf-confidence-track { flex:0 1 160px; height:7px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.08); }
+.pdf-confidence-track span { display:block; height:100%; background:var(--brand); }
+.pdf-confidence.low .pdf-confidence-track span { background:var(--warning); }
+.pdf-review-panel { width:min(100%, 980px); }
+.pdf-preview-wrap { display:grid; place-items:center; min-height:170px; overflow:auto; padding:12px; border:1px solid var(--line); border-radius:16px; background:#050a07; }
+.pdf-preview-wrap canvas { display:block; max-width:100%; height:auto; border-radius:10px; background:white; }
+.pdf-review-actions { align-items:center; }
+.pdf-review-spacer { flex:1; }
+.pdf-detected-prices { margin-top:12px; padding:10px 12px; border:1px dashed var(--line); border-radius:12px; }
+.pdf-source-meta { margin-top:8px; line-height:1.45; }
+.pdf-source-diagnostic{display:grid;gap:4px;padding:11px 12px;border:1px solid rgba(110,184,255,.22);border-radius:12px;background:rgba(110,184,255,.055);font-size:.78rem;line-height:1.45;color:var(--muted)}
+.pdf-source-diagnostic strong{color:#cfe6ff;font-size:.82rem}.pdf-source-diagnostic.ok{border-color:rgba(64,223,135,.26);background:rgba(64,223,135,.06)}.pdf-source-diagnostic.ok strong{color:#c9f8da}.pdf-source-diagnostic.warn{border-color:rgba(255,203,87,.3);background:rgba(255,203,87,.07)}.pdf-source-diagnostic.warn strong{color:#ffe088}
+
+@media(max-width:640px){
+  .pdf-candidate-main{grid-template-columns:1fr}.pdf-price-stack{text-align:left}.pdf-review-actions{flex-wrap:wrap}.pdf-review-spacer{display:none}.pdf-review-actions .btn{flex:1 1 46%}.pdf-import-actions .btn{flex:1 1 100%}
+}
+
+/* Mercador IA V2.0 - automacao supervisionada de encartes */
+.auto-kpi { border-color:rgba(64,223,135,.30); background:linear-gradient(180deg,rgba(29,93,57,.22),rgba(11,26,18,.96)); }
+.review-kpi { border-color:rgba(255,203,87,.26); background:linear-gradient(180deg,rgba(84,63,16,.20),rgba(24,27,18,.96)); }
+.pdf-candidate-card.auto-approved { border-color:rgba(64,223,135,.38); box-shadow:inset 3px 0 0 rgba(64,223,135,.55); }
+.pdf-candidate-card.needs-review { border-color:rgba(255,203,87,.30); box-shadow:inset 3px 0 0 rgba(255,203,87,.48); }
+.pdf-candidate-card.blocked-auto { border-color:rgba(255,112,112,.24); box-shadow:inset 3px 0 0 rgba(255,112,112,.38); }
+.pdf-risk-list,.pdf-evidence-list { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+.pdf-risk-chip,.pdf-evidence-chip { display:inline-flex; align-items:center; min-height:26px; padding:4px 8px; border-radius:999px; font-size:.72rem; font-weight:800; border:1px solid var(--line); }
+.pdf-risk-chip { color:#ffd0cf; background:rgba(136,31,31,.20); border-color:rgba(255,112,112,.25); }
+.pdf-evidence-chip { color:#c9f8da; background:rgba(34,112,67,.18); border-color:rgba(64,223,135,.20); }
+.pdf-automation-summary { margin:12px 0; padding:12px 14px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.025); line-height:1.5; }
+.pdf-automation-summary strong { color:var(--brand); }
+@media(max-width:640px){
+  #pdfPublishAutoBtn,#pdfPublishVerifiedBtn{flex:1 1 100%;}
+}
+
+/* Mercador IA V2.3 - controle profissional da fila de revisão */
+.pdf-workflow-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center; }
+.pdf-candidate-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.pdf-candidate-card.ignored { opacity:.68; border-style:dashed; }
+#pdfPublishReadyBtn { box-shadow:0 8px 24px rgba(64,223,135,.12); }
+@media(max-width:760px){
+  .pdf-workflow-actions { width:100%; display:grid; grid-template-columns:1fr; }
+  .pdf-workflow-actions .btn { width:100%; }
+  .pdf-candidate-actions .btn { flex:1 1 100%; }
+}
+
+/* Mercador IA V2.4 — cadastro de unidade por link do Google Maps */
+.map-link-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+.map-link-row .btn{min-height:44px;white-space:nowrap}
+.map-link-status{margin-top:7px;padding:9px 10px;border-radius:10px;background:rgba(47,128,237,.07);border:1px solid rgba(47,128,237,.16);font-size:.78rem;line-height:1.4;color:var(--muted)}
+.map-link-status.ok{background:rgba(47,179,89,.08);border-color:rgba(47,179,89,.22);color:#1a6c39;font-weight:700}
+.map-link-status.warn{background:rgba(244,166,35,.09);border-color:rgba(244,166,35,.24);color:#8b5700}
+@media(max-width:620px){.map-link-row{grid-template-columns:1fr}.map-link-row .btn{width:100%}}
+
+.delete-warning{padding:14px 15px;border:1px solid rgba(255,107,107,.28);border-radius:14px;background:rgba(255,107,107,.08);color:#ffd1d1}.delete-warning p{margin:6px 0 0;color:#e8baba;font-size:.8rem;line-height:1.5}.delete-entity-name{margin-top:16px;padding:13px 14px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-weight:950;word-break:break-word}.delete-entity-impact{margin-top:14px;color:var(--muted);font-size:.82rem;line-height:1.5}.delete-impact{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}.delete-impact>div{min-width:110px;flex:1;padding:12px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025);display:grid;gap:3px}.delete-impact strong{font-size:1.35rem;color:#fff}.delete-impact span{font-size:.72rem;color:var(--muted)}.delete-entity-panel .modal-foot{position:sticky;bottom:0;background:#0d2117;padding-top:12px;border-top:1px solid var(--line)}
+
+/* Mercador IA V2.8 — gestão completa de usuários */
+.user-pending-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;border:1px solid rgba(255,203,87,.28);border-radius:14px;background:rgba(255,203,87,.07)}
+.user-pending-banner strong{font-size:1.35rem;color:#ffd36d}.user-pending-banner span{color:#e9d9aa;font-weight:800}.user-pending-banner .btn{margin-left:auto}
+.user-contact-line{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.user-contact-line a{color:#9be9bb;text-decoration:none;font-weight:750}.user-contact-line a:hover{text-decoration:underline}
+.user-note{margin-top:7px;padding:7px 9px;border-radius:9px;background:rgba(255,255,255,.035);color:var(--muted);font-size:.75rem;line-height:1.35}
+.entity-actions.user-actions{max-width:420px}
+@media(max-width:680px){.user-pending-banner .btn{width:100%;margin-left:0}.entity-actions.user-actions{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.entity-actions.user-actions .btn{width:100%}}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07120d">
+  <title>Mercador IA — Criar conta</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./css/app.css?v=2.8.0">
+  <link rel="stylesheet" href="./css/auth.css?v=2.8.0">
+</head>
+<body>
+  <main class="auth-layout">
+    <section class="auth-hero" aria-hidden="true">
+      <div class="hero-copy">
+        <div class="eyebrow">Conta pessoal gratuita</div>
+        <div class="hero-title">Compre com<br><span>informação</span>,<br>não no escuro.</div>
+        <p class="hero-text">Cadastre o que precisa comprar durante a semana. Quando houver oferta verificada próxima, o Mercador IA relaciona a promoção ao item da sua lista.</p>
+        <div class="hero-points">
+          <div class="hero-point"><strong>Privacidade</strong><br>Cada UID acessa sua própria lista.</div>
+          <div class="hero-point"><strong>Em tempo real</strong><br>Firebase Realtime Database.</div>
+          <div class="hero-point"><strong>Responsivo</strong><br>Celular, tablet e computador.</div>
+        </div>
+      </div>
+    </section>
+    <section class="auth-panel-wrap">
+      <div class="auth-panel">
+        <div class="auth-logo">
+          <a class="brand" href="./index.html"><span class="brand-mark">M</span><span>Mercador IA<span class="brand-sub">Nova conta</span></span></a>
+        </div>
+        <div class="auth-card">
+          <div class="eyebrow">Cadastro de usuário</div>
+          <h1>Crie sua conta</h1>
+          <p class="muted">Preencha seus dados de contato. O cadastro fica aguardando liberação do SuperAdmin antes do primeiro acesso.</p>
+          <form id="registerForm" class="auth-form" autocomplete="on">
+            <div class="field"><label for="name">Nome</label><input class="input" id="name" required maxlength="80" autocomplete="name" placeholder="Seu nome"></div>
+            <div class="field"><label for="email">E-mail</label><input class="input" id="email" type="email" required autocomplete="email" placeholder="voce@email.com"></div>
+            <div class="field"><label for="phone">WhatsApp / celular</label><input class="input" id="phone" type="tel" inputmode="tel" required minlength="8" maxlength="24" autocomplete="tel" placeholder="(17) 99999-9999"></div>
+            <div class="field"><label for="password">Senha</label><input class="input" id="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres"></div>
+            <div class="field"><label for="confirmPassword">Confirmar senha</label><input class="input" id="confirmPassword" type="password" minlength="6" required autocomplete="new-password" placeholder="Repita a senha"></div>
+            <label class="checkline"><input type="checkbox" id="terms" required><span>Confirmo que os dados informados são meus e aceito que a plataforma armazene minha lista e configurações no Firebase para prestar o serviço.</span></label>
+            <button class="btn btn-primary" id="registerBtn" type="submit">Enviar cadastro para aprovação</button>
+          </form>
+          <div class="auth-links"><a href="./index.html">Já tenho conta</a></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-database-compat.js"></script>
+  <script src="./js/firebase-config.js?v=2.8.0"></script>
+  <script src="./js/utils.js?v=2.8.0"></script>
+  <script src="./js/auth.js?v=2.8.0"></script>
+  <script src="./js/cadastro.js?v=2.8.0"></script>
+  <script src="./js/pwa.js?v=2.8.0"></script>
+</body>
+</html>

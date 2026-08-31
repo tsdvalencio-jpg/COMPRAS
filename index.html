@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07120d">
+  <meta name="description" content="Mercador IA — sua lista de compras conectada às promoções reais perto de você.">
+  <title>Mercador IA — Entrar</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./css/app.css?v=2.8.0">
+  <link rel="stylesheet" href="./css/auth.css?v=2.8.0">
+</head>
+<body>
+  <main class="auth-layout">
+    <section class="auth-hero" aria-hidden="true">
+      <div class="hero-copy">
+        <div class="eyebrow">Inteligência de compras por localização</div>
+        <div class="hero-title">Sua lista.<br><span>O melhor preço</span><br>perto de você.</div>
+        <p class="hero-text">O Mercador IA cruza sua lista particular com promoções verificadas, localização de mercados e distância real para mostrar oportunidades relevantes no momento da compra.</p>
+        <div class="hero-points">
+          <div class="hero-point"><strong>Lista individual</strong><br>Dados separados por usuário.</div>
+          <div class="hero-point"><strong>Geolocalização</strong><br>Raio configurável ao seu redor.</div>
+          <div class="hero-point"><strong>Promoção verificada</strong><br>Preço publicado pelo administrador.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="auth-panel-wrap">
+      <div class="auth-panel">
+        <div class="auth-logo">
+          <div class="brand-mark">M</div>
+          <div><strong>Mercador IA</strong><span class="brand-sub">thIAguinho Soluções Digitais</span></div>
+        </div>
+        <div class="auth-card">
+          <div class="eyebrow">Acesso seguro</div>
+          <h1>Entre na sua conta</h1>
+          <p class="muted">Sua lista e suas preferências ficam vinculadas ao seu usuário.</p>
+          <form id="loginForm" class="auth-form" autocomplete="on">
+            <div class="field">
+              <label for="email">E-mail</label>
+              <input class="input" id="email" name="email" type="email" autocomplete="username" required placeholder="voce@email.com">
+            </div>
+            <div class="field">
+              <label for="password">Senha</label>
+              <div class="password-field-wrap">
+                <input class="input" id="password" name="password" type="password" autocomplete="current-password" minlength="6" required placeholder="Sua senha">
+                <button class="password-toggle" id="passwordToggle" type="button" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
+              </div>
+            </div>
+            <div class="auth-options" aria-label="Preferências de acesso">
+              <label class="checkline auth-check"><input type="checkbox" id="keepSignedIn" checked><span><strong>Salvar acesso neste aparelho</strong><small>Você não precisará digitar a senha novamente enquanto a sessão segura do Firebase continuar válida.</small></span></label>
+              <label class="checkline auth-check"><input type="checkbox" id="rememberEmail" checked><span><strong>Lembrar meu e-mail</strong><small>Somente o e-mail fica salvo localmente para facilitar um novo login.</small></span></label>
+            </div>
+            <div class="credential-safety">🔐 Sua senha <strong>não é gravada</strong> no navegador, no Realtime Database nem em texto no APK/PWA. O modo “Salvar acesso” usa a persistência segura da autenticação do Firebase.</div>
+            <button class="btn btn-primary" id="loginBtn" type="submit">Entrar</button>
+          </form>
+          <div class="auth-links">
+            <a href="./cadastro.html">Criar minha conta</a>
+            <a href="#" id="forgotLink">Esqueci minha senha</a>
+          </div>
+          <div class="security-note">A localização só é solicitada dentro do painel do usuário e, nesta versão, é usada no próprio aparelho para calcular a distância até as lojas. Ela não é salva no Realtime Database.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-database-compat.js"></script>
+  <script src="./js/firebase-config.js?v=2.8.0"></script>
+  <script src="./js/utils.js?v=2.8.0"></script>
+  <script src="./js/auth.js?v=2.8.0"></script>
+  <script src="./js/index.js?v=2.8.0"></script>
+  <script src="./js/pwa.js?v=2.8.0"></script>
+</body>
+</html>

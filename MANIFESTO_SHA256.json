@@ -1,0 +1,171 @@
+{
+  "project": "Mercador IA",
+  "version": "1.2.0",
+  "files": [
+    {
+      "file": ".nojekyll",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "file": "1.txt",
+      "sha256": "d590fa65c0bd9cc0392173372b494397b0491d29d15d6aa619d983bc6f5398a7",
+      "bytes": 6
+    },
+    {
+      "file": "CORRECAO_V1.1_LISTA_COMPLETA.md",
+      "sha256": "15e6dbbf142ebf00755006edbb2fb23086290c84e2b6a3393b9a7595982c4d01",
+      "bytes": 1528
+    },
+    {
+      "file": "CORRECAO_V1.2_LISTA_ORIGINAL.md",
+      "sha256": "4aa28b3b5ac4940e3287ee196732ea88706eee9cbdef559b5ceac0407b3c8712",
+      "bytes": 1452
+    },
+    {
+      "file": "INSTALACAO_FIREBASE_PASSO_A_PASSO.md",
+      "sha256": "0a04edbd34f54888a7e38214b92eaa3f711d7656e4c0ebb3531eac95ceec0b3e",
+      "bytes": 1119
+    },
+    {
+      "file": "README.md",
+      "sha256": "70d4fefc834bb9587ec8e881476b0a203d23f5ac26176b18b880af097a64a77b",
+      "bytes": 7145
+    },
+    {
+      "file": "admin.html",
+      "sha256": "67779f7b368b68320563022d56fe88c5ae33e8ed11a3f8778df087c9ad0c590a",
+      "bytes": 17518
+    },
+    {
+      "file": "assets/icon-192.png",
+      "sha256": "906d04334ae9adff2dc907e5bd624babad3350192281e7180b33b77236274355",
+      "bytes": 911
+    },
+    {
+      "file": "assets/icon-512.png",
+      "sha256": "aef65744d0d81ed754544471b5275c91c241c249fa4ebee64d0b83d18bef5a94",
+      "bytes": 2451
+    },
+    {
+      "file": "assets/icon.svg",
+      "sha256": "80a0302b3ba28f6be32a20098c78ad3892e35b5937b52b6289ad9bccc0c6ee19",
+      "bytes": 659
+    },
+    {
+      "file": "assets/lista-original-192.png",
+      "sha256": "756a7b7d9d2651d4db06ea98ceb153b87bb64b3c1a3281d4b2dfebc425044e02",
+      "bytes": 1168101
+    },
+    {
+      "file": "assets/lista-original-512.png",
+      "sha256": "756a7b7d9d2651d4db06ea98ceb153b87bb64b3c1a3281d4b2dfebc425044e02",
+      "bytes": 1168101
+    },
+    {
+      "file": "cadastro.html",
+      "sha256": "a6d6d37002464c7ca2f3f4785f227e46c35ce007c7ac8f75d037b1f1eedef7fb",
+      "bytes": 3755
+    },
+    {
+      "file": "css/admin.css",
+      "sha256": "0a4e465aa438357211136d39b996ce331d31accbbcc6b385a02c12df1500199e",
+      "bytes": 1775
+    },
+    {
+      "file": "css/app.css",
+      "sha256": "fd1f4b407f99abef5c16daced393c1872565a42520c7e2feb8c5b2381c7b6548",
+      "bytes": 9437
+    },
+    {
+      "file": "css/auth.css",
+      "sha256": "cc5dd3588d9687403fc06a699f0561bbcb083307694136699b6d4797ca006db4",
+      "bytes": 2315
+    },
+    {
+      "file": "css/user.css",
+      "sha256": "5c7298e221769fd4c4cf9afb7f43fb3bd17cde0e2b74bc6171c896430303675f",
+      "bytes": 2766
+    },
+    {
+      "file": "firebase-database.rules.json",
+      "sha256": "c5d2b4ad52a8360904c0a67cc91dbd1ad5a442b4a7bea8bc744a838a2b3e982c",
+      "bytes": 11710
+    },
+    {
+      "file": "index.html",
+      "sha256": "c8fae3b366cba4ab7d1845f06778f1be482cee26eb82bd91573dee996fec77e4",
+      "bytes": 3685
+    },
+    {
+      "file": "js/admin.js",
+      "sha256": "0d71c1002226fac1798f4f2ea514375079d82b8a5607f331aac5088eea025936",
+      "bytes": 27155
+    },
+    {
+      "file": "js/auth.js",
+      "sha256": "2b84162a6f184d69bb650b14538f3da5ea69ac80e679ccb1345cd076e1abf2ce",
+      "bytes": 2753
+    },
+    {
+      "file": "js/cadastro.js",
+      "sha256": "cadb9a302de73f5cf79bb7156e3f9d5e9ee6b21f46df422233c8ddf569e0ea7c",
+      "bytes": 1804
+    },
+    {
+      "file": "js/firebase-config.js",
+      "sha256": "3f7ea02bc8d05014311240707e64488f77a76d50056d4e935a942deb8f340c30",
+      "bytes": 1209
+    },
+    {
+      "file": "js/index.js",
+      "sha256": "00ef0a500adc129003a9508f529ecfb28352fe82972d7c77ad7d8535256101a1",
+      "bytes": 1962
+    },
+    {
+      "file": "js/lista-promocoes.js",
+      "sha256": "762653f40f83e787033a522e0c20b67899d1ef7e7c59eee66b6b12468b4a7b92",
+      "bytes": 5823
+    },
+    {
+      "file": "js/pwa.js",
+      "sha256": "9e988297fb854862798bce0d58ed483e4d47c348c06cb32966b0c37e6e34c50d",
+      "bytes": 312
+    },
+    {
+      "file": "js/smart-matcher.js",
+      "sha256": "e8234cab169ce4db89007e70b96fdf539f38666c94a473a0e2452069fe47f2e1",
+      "bytes": 6451
+    },
+    {
+      "file": "js/usuario.js",
+      "sha256": "a44994a85ac89c00c42658a4f419b3391a1280f838be065e6bfd8f99670d5a3c",
+      "bytes": 10941
+    },
+    {
+      "file": "js/utils.js",
+      "sha256": "6e2da465eb94da8156d16e95daab4b1aebd8d18456c0ffbde3a58b2cda0c4099",
+      "bytes": 5273
+    },
+    {
+      "file": "manifest.webmanifest",
+      "sha256": "ac73a51e97069716ede5a4466ec48a3ac88624a1486f00f791804553726707f4",
+      "bytes": 522
+    },
+    {
+      "file": "service-worker.js",
+      "sha256": "2f70dc926a03f52d5e31e9e21023ef6d97770edc5839d444db692fb8eea6ad36",
+      "bytes": 1713
+    },
+    {
+      "file": "usuario.html",
+      "sha256": "4b20874d42ef263c19c98b663fc749477947c806526407d16e38d4181f2735ca",
+      "bytes": 43449
+    },
+    {
+      "file": "version.json",
+      "sha256": "4bf834b23ca92d4745993bd0697bf63f297c58b963bd277b700f831469f66628",
+      "bytes": 130
+    }
+  ]
+}

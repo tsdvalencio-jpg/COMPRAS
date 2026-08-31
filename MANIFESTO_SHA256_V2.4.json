@@ -1,0 +1,47 @@
+{
+  "project": "Mercador IA",
+  "version": "2.4.0",
+  "generatedAt": "2026-08-10T15:20:00-03:00",
+  "files": [
+    {
+      "file": "ATUALIZACAO_V2.4_FLUXO_USUARIO_MAPS_RELATORIO.md",
+      "sha256": "e58c6fdac648a5c0c7121d408559ae63acb9c519a79c50f9057e35c60abfc338",
+      "bytes": 4548
+    },
+    {
+      "file": "admin.html",
+      "sha256": "6799d72886724065477c564423c2ab63e07830422ab5bd1c151c2e7984f19e46",
+      "bytes": 28406
+    },
+    {
+      "file": "css/admin.css",
+      "sha256": "7acb37d33b7c8c7fb93c3bfe4d29bd7666539ff6474170cd0d6426439ea885e8",
+      "bytes": 7004
+    },
+    {
+      "file": "js/admin.js",
+      "sha256": "d0e975cd7a1dcbf6d7b00d7efcb389464d5433ab6705e219729800dcea84761b",
+      "bytes": 70725
+    },
+    {
+      "file": "js/lista-promocoes.js",
+      "sha256": "ad143817068d1f36ae0b907c5ff637193da9cc1ba33f26a6d9d53f226b4965ae",
+      "bytes": 21865
+    },
+    {
+      "file": "service-worker.js",
+      "sha256": "7dd74b39491b91afe15370c2b1799cf6bec19f5f2ca2c728f11f3351fd1c1391",
+      "bytes": 1745
+    },
+    {
+      "file": "usuario.html",
+      "sha256": "8beec2b6b75e1927d0cce833c4e2fcc765200298ccf0943a22c26b47604b2016",
+      "bytes": 78959
+    },
+    {
+      "file": "version.json",
+      "sha256": "6bb6b6d2b5347283b8f401831c7f907b6a096ee908977f02e79f431c7ad52979",
+      "bytes": 148
+    }
+  ]
+}

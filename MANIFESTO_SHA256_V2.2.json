@@ -1,0 +1,14 @@
+{
+  "version": "2.2.0",
+  "base": "2.1.0",
+  "files": {
+    "admin.html": "1b2ca86c43b90361211574765b0e4d99424294c85148dd818120783913b5da87",
+    "css/app.css": "dbc1d38c01d1ea80c59331251007b0634e02413ed4e353c2de4347a8b4e1e23c",
+    "js/admin.js": "3d8dfcfa7a045275a5db878cfaacb2650b941ec2d5a91f3aa3e905562f30a342",
+    "js/pdf-encarte-importer.js": "4f48160e80be5343dd86d607f7f38a27d7f1e347a2b20d56e40bcb8f8c0f6302",
+    "js/utils.js": "3a08570203d63a72a3d8d6c5a7b2aa12ae3988afdc12290296ec14abd8679c6b",
+    "service-worker.js": "f67fcfa5fa3630dcc5bb64202629d6213955cee5c6c5f57ae759720b0637274d",
+    "version.json": "b84efd3f3e5b66841bb8fcd460254cfc9ca2fe1eec061443545dbe83c3e51c60",
+    "CORRECAO_V2.2_MODAL_E_IMPORTADOR.md": "13f1cc5df4dfa3e841a31adb00825556bd9af485d777b1f9964d24039c50732e"
+  }
+}

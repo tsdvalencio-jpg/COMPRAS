@@ -1,0 +1,119 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'superadmin') || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'admin' && (((!data.exists()) && newData.child('role').val() === 'user' && newData.child('status').val() === 'active') || (data.exists() && newData.child('role').val() === data.child('role').val() && newData.child('status').val() === data.child('status').val() && newData.child('email').val() === data.child('email').val()))) || (auth.uid === $uid && (((!data.exists()) && newData.child('role').val() === 'user' && newData.child('status').val() === 'pending' && newData.child('email').val() === auth.token.email && newData.child('phone').isString() && newData.child('phone').val().length >= 8 && newData.child('phone').val().length <= 24) || (data.exists() && newData.child('role').val() === data.child('role').val() && newData.child('status').val() === data.child('status').val() && newData.child('email').val() === data.child('email').val()))))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['name','email','role','status']) && newData.child('name').isString() && newData.child('name').val().length >= 2 && newData.child('name').val().length <= 100 && newData.child('email').isString() && newData.child('email').val().length <= 160 && (newData.child('role').val() === 'user' || newData.child('role').val() === 'admin' || newData.child('role').val() === 'superadmin' || newData.child('role').val() === 'market_admin' || newData.child('role').val() === 'market_operator') && (newData.child('status').val() === 'pending' || newData.child('status').val() === 'active' || newData.child('status').val() === 'blocked' || newData.child('status').val() === 'rejected' || newData.child('status').val() === 'deleted') && (!newData.child('phone').exists() || (newData.child('phone').isString() && newData.child('phone').val().length <= 24)) && (!newData.child('contactEmail').exists() || (newData.child('contactEmail').isString() && newData.child('contactEmail').val().length <= 160)) && (!newData.child('notes').exists() || (newData.child('notes').isString() && newData.child('notes').val().length <= 500)))"
+      },
+      ".read": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+      ".indexOn": [
+        "status",
+        "email"
+      ]
+    },
+    "shopping_lists": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (auth.uid === $uid && root.child('users').child(auth.uid).child('status').val() === 'active') || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (auth.uid === $uid && root.child('users').child(auth.uid).child('status').val() === 'active') || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'superadmin'))",
+        "$itemId": {
+          ".validate": "!newData.exists() || ((newData.hasChildren(['nome','quantidade','preco','status']) && newData.child('nome').isString() && newData.child('nome').val().length >= 1 && newData.child('nome').val().length <= 120 && newData.child('quantidade').isNumber() && newData.child('quantidade').val() > 0 && newData.child('quantidade').val() <= 999 && newData.child('preco').isNumber() && newData.child('preco').val() >= 0 && (newData.child('status').val() === 'faltando' || newData.child('status').val() === 'comprado' || newData.child('status').val() === 'adiado')) || (newData.hasChildren(['name','quantity','priority','status','createdAt']) && newData.child('name').isString() && newData.child('name').val().length >= 2 && newData.child('name').val().length <= 120 && newData.child('quantity').isNumber() && newData.child('quantity').val() > 0 && newData.child('quantity').val() <= 999 && (newData.child('priority').val() === 'low' || newData.child('priority').val() === 'normal' || newData.child('priority').val() === 'high') && (newData.child('status').val() === 'pending' || newData.child('status').val() === 'bought')))"
+        }
+      }
+    },
+    "user_settings": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (auth.uid === $uid && root.child('users').child(auth.uid).child('status').val() === 'active') || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (auth.uid === $uid && root.child('users').child(auth.uid).child('status').val() === 'active') || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'superadmin'))",
+        "radiusKm": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 25"
+        }
+      }
+    },
+    "markets": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('status').val() === 'active'",
+      "$marketId": {
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'superadmin') || (newData.exists() && root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'admin'))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['name','active']) && newData.child('name').isString() && newData.child('name').val().length >= 2 && newData.child('name').val().length <= 120 && newData.child('active').isBoolean())"
+      },
+      ".indexOn": [
+        "active"
+      ]
+    },
+    "market_units": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('status').val() === 'active'",
+      "$unitId": {
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'superadmin') || (newData.exists() && root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'admin'))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['marketId','name','address','city','state','lat','lng','active']) && newData.child('marketId').isString() && root.child('markets').child(newData.child('marketId').val()).exists() && newData.child('name').isString() && newData.child('lat').isNumber() && newData.child('lat').val() >= -90 && newData.child('lat').val() <= 90 && newData.child('lng').isNumber() && newData.child('lng').val() >= -180 && newData.child('lng').val() <= 180 && newData.child('active').isBoolean())"
+      },
+      ".indexOn": [
+        "active",
+        "marketId"
+      ]
+    },
+    "promotions": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('status').val() === 'active'",
+      "$promoId": {
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'superadmin') || (newData.exists() && root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'admin'))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['marketId','unitId','productName','category','price','startAt','endAt','sourceType','sourceReference','verified','active']) && root.child('markets').child(newData.child('marketId').val()).exists() && root.child('market_units').child(newData.child('unitId').val()).child('marketId').val() === newData.child('marketId').val() && newData.child('productName').isString() && newData.child('productName').val().length >= 2 && newData.child('productName').val().length <= 160 && newData.child('category').isString() && newData.child('category').val().length >= 2 && newData.child('price').isNumber() && newData.child('price').val() > 0 && newData.child('startAt').isNumber() && newData.child('endAt').isNumber() && newData.child('endAt').val() > newData.child('startAt').val() && newData.child('sourceType').isString() && newData.child('sourceReference').isString() && newData.child('sourceReference').val().length >= 3 && newData.child('verified').isBoolean() && newData.child('active').isBoolean())"
+      },
+      ".indexOn": [
+        "unitId",
+        "active",
+        "endAt"
+      ]
+    },
+    "geo_catalog": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('status').val() === 'active'",
+      ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+      "$unitId": {
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['marketId','marketName','unitName','lat','lng','active']) && newData.child('marketId').isString() && newData.child('marketName').isString() && newData.child('unitName').isString() && newData.child('lat').isNumber() && newData.child('lat').val() >= -90 && newData.child('lat').val() <= 90 && newData.child('lng').isNumber() && newData.child('lng').val() >= -180 && newData.child('lng').val() <= 180 && newData.child('active').val() === true)"
+      }
+    },
+    "promotion_live": {
+      ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+      "$unitId": {
+        ".read": "auth != null && root.child('users').child(auth.uid).child('status').val() === 'active'",
+        ".indexOn": [
+          "endAt"
+        ],
+        "$promoId": {
+          ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['marketId','unitId','productName','category','price','startAt','endAt','verified','active']) && newData.child('unitId').val() === $unitId && newData.child('marketId').isString() && newData.child('productName').isString() && newData.child('productName').val().length >= 2 && newData.child('category').isString() && newData.child('price').isNumber() && newData.child('price').val() > 0 && newData.child('startAt').isNumber() && newData.child('endAt').isNumber() && newData.child('endAt').val() > newData.child('startAt').val() && newData.child('verified').val() === true && newData.child('active').val() === true)"
+        }
+      }
+    },
+    "promotion_inbox": {
+      ".read": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+      "$messageId": {
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))"
+      }
+    },
+    "market_users": {
+      "$marketId": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (auth.uid === $uid && root.child('users').child(auth.uid).child('status').val() === 'active') || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+          ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'superadmin'))"
+        }
+      }
+    },
+    "audit_logs": {
+      ".read": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+      "$logId": {
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))"
+      }
+    },
+    "purchase_reports": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (auth.uid === $uid && root.child('users').child(auth.uid).child('status').val() === 'active') || (root.child('users').child(auth.uid).child('status').val() === 'active' && (root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'admin')))",
+        ".write": "auth != null && (auth.uid === 'Ah16jHtjZTgSVBzgL759FnQl5W73' || (auth.uid === $uid && root.child('users').child(auth.uid).child('status').val() === 'active') || (root.child('users').child(auth.uid).child('status').val() === 'active' && root.child('users').child(auth.uid).child('role').val() === 'superadmin'))",
+        "$reportId": {
+          ".validate": "!newData.exists() || (newData.hasChildren(['content','location','total','createdAt']) && newData.child('content').isString() && newData.child('content').val().length > 0 && newData.child('location').isString() && newData.child('location').val().length <= 160 && newData.child('total').isNumber() && newData.child('total').val() >= 0 && newData.child('createdAt').isString())"
+        }
+      }
+    }
+  }
+}

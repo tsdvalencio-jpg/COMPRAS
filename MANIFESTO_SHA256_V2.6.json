@@ -1,0 +1,83 @@
+{
+  "project": "Mercador IA",
+  "version": "2.6.0",
+  "type": "cumulative_update_from_v2.4",
+  "generatedAt": "2026-08-10",
+  "files": [
+    {
+      "file": "ATUALIZACAO_V2.6_PERFORMANCE_ESCALA.md",
+      "bytes": 5486,
+      "sha256": "0e970b3f6fe8f9517094431e88c1b17703a6c9832b8b45034c78dacf91043fbd"
+    },
+    {
+      "file": "admin.html",
+      "bytes": 30481,
+      "sha256": "618a5eb9419a73f5e6df2fcd97f2167f80c615a6fbbd2f0b69a82d87e18027ce"
+    },
+    {
+      "file": "cadastro.html",
+      "bytes": 3755,
+      "sha256": "e9a16adbb71763156a77755833766a671a8eb9c2d3dd4c0a4628a7c348cbc141"
+    },
+    {
+      "file": "css/admin.css",
+      "bytes": 7950,
+      "sha256": "b9d07f8b7cb908e15ffcd6c71b5d41540eb76dade8090f7294d234f6f1ff5575"
+    },
+    {
+      "file": "css/auth.css",
+      "bytes": 3244,
+      "sha256": "9c99aed196b0c3b4069125ab1c5cec549fd9fa40a049f9567b09d884d49e30c2"
+    },
+    {
+      "file": "firebase-database.rules.json",
+      "bytes": 15009,
+      "sha256": "9bcb1228b16803978f3c2c516c195cfef4278fc4e2a15e69e6574f37e2d1b2c9"
+    },
+    {
+      "file": "index.html",
+      "bytes": 4768,
+      "sha256": "7eec1d33be1e26577b95b4473f5b51267474663aacc1635b32839ddebdc20df7"
+    },
+    {
+      "file": "js/admin.js",
+      "bytes": 85130,
+      "sha256": "b8876ceadc4edabb3183b6a324d9db5a9cce38e1c16602ca637533262b932f84"
+    },
+    {
+      "file": "js/auth.js",
+      "bytes": 3472,
+      "sha256": "1d47684f3f2bef56e6364e25305ab506f9f9e3a891996fdfb45386f7a82f2661"
+    },
+    {
+      "file": "js/firebase-config.js",
+      "bytes": 1209,
+      "sha256": "63b6589598598ce2867db988ef4f07fd2f5e6e699637b249b2a0febd1988bfed"
+    },
+    {
+      "file": "js/index.js",
+      "bytes": 4286,
+      "sha256": "2be2843a3a80b1a537216b884df7306e95af7b8fe4acea44a3771739873e73b5"
+    },
+    {
+      "file": "js/lista-promocoes.js",
+      "bytes": 29721,
+      "sha256": "cc41b0343d29ac213ff79d330f9d082380e68d84513fc3c95da0f6ec1de03884"
+    },
+    {
+      "file": "service-worker.js",
+      "bytes": 2138,
+      "sha256": "4fcaf3d9b6a3c3626283e7cbc6ccebcffcf781deeb04f82681dec9465f94bcce"
+    },
+    {
+      "file": "usuario.html",
+      "bytes": 94556,
+      "sha256": "3dd04ed44974135792db6e3b5641bc186f44407572ed003324f33698a19f35bd"
+    },
+    {
+      "file": "version.json",
+      "bytes": 150,
+      "sha256": "562e105949a5029433f59189143a3cb46d7c9ec87871329fd91e409f7dfcd816"
+    }
+  ]
+}

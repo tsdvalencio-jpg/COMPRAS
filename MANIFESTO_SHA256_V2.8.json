@@ -1,0 +1,18 @@
+{
+  "ATUALIZACAO_V2.8_USUARIOS_PERFORMANCE.md": "bebdbb887f3fe19977ad85ed3c73324c9ec3ba38da9dc689b8cee9a316398497",
+  "admin.html": "112bd3ef2f75d13d9ff92ddc00eafd6eb58679742b88cf5a858be6cd626cf18a",
+  "cadastro.html": "8eb5a9e6f33dc5e06c8dcd93f909d003035bd1becc64489273b2f6d9cf2d9470",
+  "css/admin.css": "5b103e698aac2d1807db15371fac42ba07eef11ae53574def5c329bd5044e47d",
+  "css/inicio.css": "04b329a420f7d04183a2e6189eb6b0343de936edb9dd1f24cbbada54439f491b",
+  "firebase-database.rules.json": "1f17dea7db79a8183b4190d0e9fc6cd4528fcecb858636200e800eb00df244f6",
+  "index.html": "92b9bd04fdaa451dce1040ee9f51acebfb220eb00b9a5fe1838af32f91a03256",
+  "inicio.html": "ac02117cd6e6c0cc6c0d6e9aa546187c3dd95baba147c01963da11292e10eaef",
+  "js/admin.js": "90c9a374d9f96f4929b2544a5a144342ed2a48a8ecc2f6087505ac91666a0bd3",
+  "js/auth.js": "3af987e41fd9aaff7fc7e900d9337ecf2b192acb0f5815b6bb5cc87dcb4cd7fb",
+  "js/cadastro.js": "cc8eeddfbcb8bf777503c3d608918b79a673fc12c22d46ec9203f21c19b4ab02",
+  "js/index.js": "d6843bf06e40639890946d172f165fed5fa56ff46df779904910f3f23510afa9",
+  "js/inicio.js": "366ebb642c0886dcf3b55579cb4f439e64f32332a58fd9ef8bdde78cb8989290",
+  "service-worker.js": "264a487c2a34395bf5ebd984f2493277770a56b6cc851a81c98d3b4f671435b3",
+  "usuario.html": "27cc7c279531bc47ec7b60ff374f647e354d28e1679fd44f7fef63bd8a575e2f",
+  "version.json": "c5acd7d34111196b7571751651960680b9e497d4f9c8b3cb220c6016a6142dac"
+}

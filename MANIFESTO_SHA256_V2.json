@@ -1,0 +1,12 @@
+{
+  "build": "mercador-ia-v2-motor-automatico-encartes",
+  "files": {
+    "ATUALIZACAO_V2_MOTOR_AUTOMATICO.md": "d48e8049f8f228a42833c026fa0bb317367d49091e5bd5ecb7c742f9c89500b9",
+    "admin.html": "10f8e7b0aacc02aefcb663cf2c40008fab4955bd5aefbdbada2ab1848c4b2d59",
+    "css/admin.css": "a8ac2169c9e72cb304eff118af075ba268bfb3348526eaf89ed742e275b72f61",
+    "js/admin.js": "6d1f0e4201a12900947b988c1815d5d4ad3ddf7b5177ce035638880e4d474ca3",
+    "js/pdf-encarte-importer.js": "a69a8babaa2b7a87616877069d22fd480ebc4ff21c124fe2d4548a991afc4b7e",
+    "service-worker.js": "c7d297c4e8eb01b65f7876d80b1d53ac5ade608045af99fbbb18754938c033f1",
+    "version.json": "f9d7595a7c612644605ed50f0685c0132529a4fe67b78d613ae25505fbea8a34"
+  }
+}

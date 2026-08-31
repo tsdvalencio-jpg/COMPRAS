@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07120d">
+  <title>Mercador IA — Administração</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./css/app.css?v=2.8.0">
+  <link rel="stylesheet" href="./css/admin.css?v=3.4.0">
+</head>
+<body>
+  <div id="loading" class="loading-screen"><div class="loading-box"><div class="spinner"></div><strong>Validando acesso administrativo...</strong></div></div>
+
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="./admin.html"><span class="brand-mark">M</span><span>Mercador IA<span class="brand-sub">SuperAdmin</span></span></a>
+      <div style="display:flex;align-items:center;gap:9px">
+        <span class="badge ok" id="adminRoleBadge">carregando</span>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="admin-layout">
+    <aside class="admin-sidebar">
+      <nav class="admin-nav" aria-label="Administração">
+        <button class="active" data-section="dashboard">▦ Dashboard</button>
+        <button data-section="users">👥 Usuários</button>
+        <button data-section="markets">🏪 Mercados</button>
+        <button data-section="units">📍 Unidades</button>
+        <button data-section="promotions">🔥 Promoções</button>
+        <button data-section="pdfimport">📄 Importar encarte</button>
+        <button data-section="inbox">📥 Caixa de entrada</button>
+        <button data-section="audit">🛡️ Auditoria</button>
+      </nav>
+      <div class="security-note" style="margin-top:18px">Valores promocionais entram no sistema somente por dois caminhos controlados: aprovação automática do motor ou conferência manual do administrador. Itens pendentes de revisão podem ser excluídos da importação sem publicação.</div>
+    </aside>
+
+    <section class="admin-content">
+      <section id="section-dashboard" class="admin-section active">
+        <div class="page-heading">
+          <div><div class="eyebrow">Visão geral</div><h1>Painel administrativo</h1><p class="muted" id="adminWelcome">Carregando perfil...</p></div>
+          <button class="btn btn-primary" data-open-modal="promotionModal">+ Nova promoção</button>
+        </div>
+        <div class="grid grid-4">
+          <div class="card kpi"><span class="kpi-label">Usuários ativos</span><strong class="kpi-value" id="kpiUsers">0</strong><span class="kpi-foot">Contas com acesso ativo</span></div>
+          <div class="card kpi"><span class="kpi-label">Mercados ativos</span><strong class="kpi-value" id="kpiMarkets">0</strong><span class="kpi-foot">Redes/estabelecimentos</span></div>
+          <div class="card kpi"><span class="kpi-label">Unidades ativas</span><strong class="kpi-value" id="kpiUnits">0</strong><span class="kpi-foot">Pontos com geolocalização</span></div>
+          <div class="card kpi"><span class="kpi-label">Promoções válidas</span><strong class="kpi-value" id="kpiPromos">0</strong><span class="kpi-foot">Ativas, conferidas e no prazo</span></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:16px">
+          <div class="card card-pad"><div class="eyebrow">Qualidade dos dados</div><h2 style="margin-top:8px">Publicação responsável</h2><p class="muted">Toda promoção exige mercado, unidade, produto, preço real informado, período de validade, origem e confirmação manual do valor. Promoção não conferida não aparece ao consumidor.</p><div id="qualitySummary" class="list"></div></div>
+          <div class="card card-pad"><div class="eyebrow">Operação</div><h2 style="margin-top:8px">Ações rápidas</h2><div class="auto-grid"><button class="btn btn-secondary" data-open-modal="userModal">+ Usuário</button><button class="btn btn-secondary" data-open-modal="marketModal">+ Mercado</button><button class="btn btn-secondary" data-open-modal="unitModal">+ Unidade</button><button class="btn btn-primary" data-open-modal="promotionModal">+ Promoção</button></div></div>
+        </div>
+      </section>
+
+      <section id="section-users" class="admin-section">
+        <div class="page-heading"><div><div class="eyebrow">Acessos</div><h1>Usuários</h1><p class="muted">Cadastros públicos entram como pendentes. O SuperAdmin revisa contato, aprova, bloqueia, edita ou exclui o acesso e os dados do aplicativo.</p></div><button class="btn btn-primary" data-open-modal="userModal">+ Novo usuário</button></div>
+        <div class="user-pending-banner" id="userPendingBanner" hidden><strong id="userPendingCount">0</strong><span>cadastros aguardando liberação</span><button type="button" class="btn btn-primary btn-sm" id="showPendingUsersBtn">Ver pendentes</button></div>
+        <div class="admin-toolbar"><div class="toolbar-left"><input class="input searchbox" id="userSearch" placeholder="Buscar nome, e-mail ou telefone"><select class="select" id="userStatusFilter" style="width:auto"><option value="all">Atuais</option><option value="pending">Pendentes</option><option value="active">Ativos</option><option value="blocked">Bloqueados</option><option value="rejected">Rejeitados</option><option value="deleted">Excluídos</option></select></div><span class="badge info" id="userCountBadge">0 usuários</span></div>
+        <div id="usersList" class="list"></div>
+      </section>
+
+      <section id="section-markets" class="admin-section">
+        <div class="page-heading"><div><div class="eyebrow">Base universal</div><h1>Mercados</h1><p class="muted">Cadastre redes ou estabelecimentos. As unidades recebem endereço e coordenadas.</p></div><button class="btn btn-primary" data-open-modal="marketModal">+ Novo mercado</button></div>
+        <div class="admin-toolbar"><input class="input searchbox" id="marketSearch" placeholder="Buscar mercado"><span class="badge info" id="marketCountBadge">0 mercados</span></div>
+        <div id="marketsList" class="list"></div>
+      </section>
+
+      <section id="section-units" class="admin-section">
+        <div class="page-heading"><div><div class="eyebrow">Geolocalização</div><h1>Unidades</h1><p class="muted">Cadastre a localização pela URL do Google Maps. As coordenadas são extraídas e usadas internamente no cálculo de distância.</p></div><button class="btn btn-primary" data-open-modal="unitModal">+ Nova unidade</button></div>
+        <div class="admin-toolbar"><input class="input searchbox" id="unitSearch" placeholder="Buscar unidade, cidade ou endereço"><span class="badge info" id="unitCountBadge">0 unidades</span></div>
+        <div id="unitsList" class="list"></div>
+      </section>
+
+      <section id="section-promotions" class="admin-section">
+        <div class="page-heading"><div><div class="eyebrow">Ofertas verificadas</div><h1>Promoções</h1><p class="muted">Somente promoções ativas, conferidas e dentro da validade são exibidas aos usuários.</p></div><button class="btn btn-primary" data-open-modal="promotionModal">+ Nova promoção</button></div>
+        <div class="admin-toolbar"><div class="toolbar-left"><input class="input searchbox" id="promoSearch" placeholder="Buscar produto, marca ou mercado"><select class="select" id="promoFilter" style="width:auto"><option value="all">Todas</option><option value="valid">Válidas agora</option><option value="expired">Vencidas</option><option value="inactive">Inativas</option></select></div><div class="toolbar-right"><button class="btn btn-secondary btn-sm" id="rebuildPromotionLiveBtn" type="button" title="Reconstrói o catálogo geográfico leve e o índice compacto de promoções">⚡ Otimizar dados dos usuários</button><span class="badge info" id="promoCountBadge">0 promoções</span></div></div>
+        <div class="card card-pad" style="margin-bottom:14px"><strong>Dados leves para o aplicativo</strong><p class="muted small" style="margin:6px 0 0">O usuário recebe um catálogo geográfico compacto e acompanha somente promoções das unidades próximas. Use “Otimizar dados dos usuários” uma vez após esta atualização para criar os índices dos cadastros já existentes; depois mercado, unidade e promoção passam a manter esses índices automaticamente.</p></div>
+        <div id="promotionsList" class="list"></div>
+      </section>
+
+      <section id="section-pdfimport" class="admin-section">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">Automação supervisionada</div>
+            <h1>Motor automático de encartes</h1>
+            <p class="muted">Recebe PDF, imagens (JPG/PNG/WebP) ou texto/OCR e transforma tudo no mesmo JSON de conhecimento. A promoção só nasce depois da reconstrução documental dos cards e das travas de validação.</p>
+          </div>
+        </div>
+
+        <div class="card card-pad pdf-import-safety">
+          <strong>Automação com trava de segurança</strong>
+          <p class="muted" style="margin:8px 0 0">PDF e imagens mantêm a geometria do documento para reconstruir cada card. Texto colado é aceito, mas nunca é publicado automaticamente porque não possui coordenadas visuais. Qualquer conflito de produto, preço, unidade ou validade cai em <strong>Revisão</strong>.</p>
+        </div>
+
+        <form id="pdfImportForm" class="card card-pad" style="margin-top:16px">
+          <div class="form-grid">
+            <div class="field"><label>Mercado</label><select class="select" id="pdfImportMarketId" required></select></div>
+            <div class="field"><label>Unidade</label><select class="select" id="pdfImportUnitId" required></select></div>
+            <div class="field full"><label>Arquivo oficial — PDF, imagem ou TXT</label><input class="input" id="pdfImportFile" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,text/plain,.txt" multiple><div class="field-help">Use 1 PDF, 1 arquivo TXT ou uma/múltiplas imagens do mesmo encarte. A leitura acontece no navegador; o arquivo original não é gravado no Realtime Database.</div></div>
+            <div class="field full"><label>Ou cole o texto/OCR do encarte</label><textarea class="textarea" id="pdfImportText" rows="7" placeholder="Cole aqui o texto extraído do encarte quando você não tiver o PDF/imagem..."></textarea><div class="field-help">Texto sem geometria serve para reconstrução supervisionada. Por segurança, essas ofertas sempre exigem conferência manual antes de publicar.</div></div>
+            <div class="field full"><label>URL oficial do encarte (opcional/recomendado)</label><input class="input" id="pdfImportSourceUrl" type="url" placeholder="https://site-do-mercado/.../encarte"><div class="field-help">Fica gravada na promoção como referência de origem.</div></div>
+            <div class="field full"><div id="pdfImportSourceSummary" class="pdf-source-diagnostic" aria-live="polite"><strong>Fonte aguardando entrada</strong><span>Envie PDF/imagem ou cole texto contendo ofertas. Links encontrados no texto serão preservados como origem, mas nunca serão tratados como preço/produto.</span></div></div>
+            <div class="field"><label>Início da validade</label><input class="input" id="pdfImportStartAt" type="datetime-local"></div>
+            <div class="field"><label>Fim da validade</label><input class="input" id="pdfImportEndAt" type="datetime-local"></div>
+            <div class="field"><label>Programa/Clube (opcional)</label><input class="input" id="pdfImportClubName" placeholder="Ex.: Clube Compre Mix"></div>
+            <div class="field"><label>Política automática</label><select class="select" id="pdfAutomationMode"><option value="0.99">Conservadora · 99%</option><option value="0.98" selected>Profissional · 98%</option><option value="0.97">Flexível · 97%</option></select><div class="field-help">O limite nunca ignora travas críticas: validade ausente, preço ambíguo ou associação conflitante continuam indo para revisão.</div></div>
+            <label class="checkline"><input type="checkbox" id="pdfImportLowerIsClub"><span>Quando o mesmo bloco tiver dois preços e o encarte usar programa de fidelidade, tratar o menor como <strong>preço Clube/programa</strong>.</span></label>
+            <label class="checkline"><input type="checkbox" id="pdfAutoPublish" checked><span><strong>Publicar automaticamente os casos seguros</strong> após a análise. Somente candidatos que ultrapassarem o limite e não tiverem trava crítica.</span></label>
+          </div>
+          <div class="pdf-import-actions">
+            <button class="btn btn-primary" id="pdfImportAnalyzeBtn" type="submit">Analisar encarte</button>
+            <button class="btn btn-secondary" id="pdfImportResetBtn" type="button">Limpar análise</button>
+          </div>
+          <div id="pdfImportProgress" class="pdf-import-progress" hidden><div id="pdfImportProgressBar"></div></div>
+          <div class="small muted" id="pdfImportStatus" style="margin-top:10px">Selecione mercado, unidade e PDF/imagem ou cole o texto do encarte.</div>
+        </form>
+
+        <div id="pdfImportWorkspace" hidden style="margin-top:16px">
+          <div class="grid grid-4">
+            <div class="card kpi"><span class="kpi-label">Detectados</span><strong class="kpi-value" id="pdfKpiCandidates">0</strong><span class="kpi-foot" id="pdfKpiPagesFoot">0 páginas</span></div>
+            <div class="card kpi auto-kpi"><span class="kpi-label">Automáticos</span><strong class="kpi-value" id="pdfKpiAuto">0</strong><span class="kpi-foot">seguros pelo motor</span></div>
+            <div class="card kpi review-kpi"><span class="kpi-label">Revisão</span><strong class="kpi-value" id="pdfKpiReview">0</strong><span class="kpi-foot">somente exceções</span></div>
+            <div class="card kpi"><span class="kpi-label">Publicados</span><strong class="kpi-value" id="pdfKpiPublished">0</strong><span class="kpi-foot">gravados no Firebase</span></div>
+          </div>
+
+          <div class="admin-toolbar" style="margin-top:16px">
+            <div class="toolbar-left">
+              <input class="input searchbox" id="pdfCandidateSearch" placeholder="Buscar candidato">
+              <select class="select" id="pdfCandidateFilter" style="width:auto">
+                <option value="all">Atuais</option>
+                <option value="auto">Automáticos</option>
+                <option value="pending">A revisar</option>
+                <option value="verified">Conferidos manualmente</option>
+                <option value="published">Publicados</option>
+                <option value="ignored">Ignorados</option>
+                <option value="low">Baixa confiança</option>
+              </select>
+            </div>
+            <div class="pdf-workflow-actions">
+              <button class="btn btn-primary" id="pdfPublishReadyBtn" type="button">Publicar tudo que está pronto</button>
+              <button class="btn btn-secondary" id="pdfPublishAutoBtn" type="button">Publicar automáticos seguros</button>
+              <button class="btn btn-secondary" id="pdfPublishVerifiedBtn" type="button">Publicar revisados</button>
+              <button class="btn btn-danger" id="pdfDiscardPendingBtn" type="button">Excluir pendentes de revisão</button>
+              <button class="btn btn-secondary" id="pdfDownloadKnowledgeBtn" type="button" disabled>Baixar JSON de conhecimento</button>
+            </div>
+          </div>
+          <div id="pdfImportMeta" class="small muted" style="margin-bottom:12px"></div>
+          <div id="pdfCandidatesList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="section-inbox" class="admin-section">
+        <div class="page-heading"><div><div class="eyebrow">Preparado para o bot</div><h1>Caixa de entrada</h1><p class="muted">Receba textos encaminhados por WhatsApp para revisão antes de transformar em promoção.</p></div><button class="btn btn-primary" data-open-modal="inboxModal">+ Registrar recebimento</button></div>
+        <div id="inboxList" class="list"></div>
+      </section>
+
+      <section id="section-audit" class="admin-section">
+        <div class="page-heading"><div><div class="eyebrow">Rastreabilidade</div><h1>Auditoria</h1><p class="muted">Registro das operações administrativas gravadas pelo painel.</p></div></div>
+        <div id="auditList" class="list"></div>
+      </section>
+    </section>
+  </main>
+
+  <nav class="admin-mobile-nav" aria-label="Administração mobile">
+    <button class="active" data-section="dashboard">▦<br>Início</button><button data-section="users">👥<br>Usuários</button><button data-section="markets">🏪<br>Mercados</button><button data-section="units">📍<br>Unidades</button><button data-section="promotions">🔥<br>Ofertas</button><button data-section="pdfimport">📄<br>Encarte</button><button data-section="inbox">📥<br>Inbox</button><button data-section="audit">🛡️<br>Auditoria</button>
+  </nav>
+
+  <div id="userModal" class="modal" hidden><div class="modal-panel"><div class="modal-head"><div><strong>Novo usuário</strong><div class="small muted">Conta criada pelo administrador já entra liberada. Cadastros feitos pelo link público ficam pendentes.</div></div><button type="button" class="icon-btn" data-close-modal="userModal">✕</button></div><form id="userForm"><div class="modal-body"><div class="form-grid"><div class="field"><label>Nome</label><input class="input" name="name" required maxlength="100"></div><div class="field"><label>E-mail de login</label><input class="input" name="email" type="email" required></div><div class="field"><label>WhatsApp / celular</label><input class="input" name="phone" inputmode="tel" maxlength="24" placeholder="(17) 99999-9999"></div><div class="field"><label>E-mail de contato</label><input class="input" name="contactEmail" type="email" placeholder="Se diferente do login"></div><div class="field"><label>Senha inicial</label><input class="input" name="password" type="password" minlength="6" required></div><div class="field"><label>Perfil</label><select class="select" name="role" id="newUserRole"><option value="user">Usuário consumidor</option><option value="admin">Administrador</option></select></div><div class="field full"><label>Observação interna</label><textarea class="textarea" name="notes" maxlength="500" placeholder="Informação visível somente na administração"></textarea></div></div><p class="field-help" style="margin-top:12px">A senha nunca é salva no Realtime Database.</p></div><div class="modal-foot"><button class="btn btn-secondary" type="button" data-close-modal="userModal">Cancelar</button><button class="btn btn-primary" id="userSubmit" type="submit">Criar usuário</button></div></form></div></div>
+
+  <div id="userEditModal" class="modal" hidden><div class="modal-panel"><div class="modal-head"><div><strong>Editar usuário</strong><div class="small muted">O e-mail de login do Firebase Authentication é exibido apenas como referência. Dados de contato podem ser atualizados aqui.</div></div><button type="button" class="icon-btn" data-close-modal="userEditModal">✕</button></div><form id="userEditForm"><input type="hidden" name="id"><div class="modal-body"><div class="form-grid"><div class="field"><label>Nome</label><input class="input" name="name" required maxlength="100"></div><div class="field"><label>E-mail de login</label><input class="input" name="email" type="email" readonly></div><div class="field"><label>WhatsApp / celular</label><input class="input" name="phone" inputmode="tel" maxlength="24"></div><div class="field"><label>E-mail de contato</label><input class="input" name="contactEmail" type="email"></div><div class="field"><label>Perfil</label><select class="select" name="role"><option value="user">Usuário consumidor</option><option value="admin">Administrador</option></select></div><div class="field"><label>Status</label><select class="select" name="status"><option value="pending">Pendente</option><option value="active">Ativo</option><option value="blocked">Bloqueado</option><option value="rejected">Rejeitado</option></select></div><div class="field full"><label>Observação interna</label><textarea class="textarea" name="notes" maxlength="500"></textarea></div></div><div class="field-help" style="margin-top:12px">Para alterar o e-mail usado no login do Firebase Authentication será necessário o backend administrativo. Aqui o e-mail de contato pode ser alterado sem criar divergência de credencial.</div></div><div class="modal-foot"><button class="btn btn-secondary" type="button" data-close-modal="userEditModal">Cancelar</button><button class="btn btn-primary" id="userEditSubmit" type="submit">Salvar alterações</button></div></form></div></div>
+
+  <div id="marketModal" class="modal" hidden><div class="modal-panel"><div class="modal-head"><strong id="marketModalTitle">Cadastrar mercado</strong><button type="button" class="icon-btn" data-close-modal="marketModal">✕</button></div><form id="marketForm"><input type="hidden" name="id"><div class="modal-body"><div class="form-grid"><div class="field"><label>Nome comercial</label><input class="input" name="name" required maxlength="120"></div><div class="field"><label>Razão social (opcional)</label><input class="input" name="legalName" maxlength="150"></div><div class="field"><label>CNPJ (opcional)</label><input class="input" name="cnpj" maxlength="20"></div><div class="field"><label>WhatsApp/contato</label><input class="input" name="contact" maxlength="40"></div><div class="field full"><label>Site ou referência oficial (opcional)</label><input class="input" name="website" type="url" placeholder="https://..."></div><label class="checkline full"><input type="checkbox" name="active" checked><span>Mercado ativo na plataforma</span></label></div></div><div class="modal-foot"><button class="btn btn-secondary" type="button" data-close-modal="marketModal">Cancelar</button><button class="btn btn-primary" type="submit">Salvar mercado</button></div></form></div></div>
+
+  <div id="unitModal" class="modal" hidden><div class="modal-panel"><div class="modal-head"><div><strong id="unitModalTitle">Cadastrar unidade</strong><div class="small muted">Cole o link completo do Google Maps. O sistema extrai e salva as coordenadas internamente.</div></div><button type="button" class="icon-btn" data-close-modal="unitModal">✕</button></div><form id="unitForm"><input type="hidden" name="id"><input type="hidden" name="lat"><input type="hidden" name="lng"><div class="modal-body"><div class="form-grid"><div class="field"><label>Mercado</label><select class="select" name="marketId" id="unitMarketId" required></select></div><div class="field"><label>Nome da unidade</label><input class="input" name="name" required placeholder="Ex.: Loja Centro"></div><div class="field full"><label>Link do Google Maps</label><div class="map-link-row"><input class="input" name="mapsUrl" id="unitMapsUrl" type="url" required placeholder="https://www.google.com/maps/..."><button class="btn btn-secondary btn-sm" type="button" id="parseUnitMapsLink">Ler link</button></div><div id="unitMapStatus" class="map-link-status">Cole o link do local no Google Maps. Latitude e longitude ficam ocultas e são usadas apenas pelo cálculo de proximidade.</div></div><div class="field full"><label>Endereço descritivo (opcional)</label><input class="input" name="address" placeholder="Pode deixar em branco se o link identifica claramente a unidade"></div><div class="field"><label>Cidade (opcional)</label><input class="input" name="city" placeholder="São José do Rio Preto"></div><div class="field"><label>Estado</label><input class="input" name="state" maxlength="2" placeholder="SP" value="SP"></div><label class="checkline full"><input type="checkbox" name="active" checked><span>Unidade ativa para cálculo de proximidade</span></label></div></div><div class="modal-foot"><button class="btn btn-secondary" type="button" data-close-modal="unitModal">Cancelar</button><button class="btn btn-primary" type="submit">Salvar unidade</button></div></form></div></div>
+
+  <div id="promotionModal" class="modal" hidden><div class="modal-panel"><div class="modal-head"><div><strong id="promotionModalTitle">Cadastrar promoção real</strong><div class="small muted">Dados publicados ao consumidor após confirmação.</div></div><button type="button" class="icon-btn" data-close-modal="promotionModal">✕</button></div><form id="promotionForm"><input type="hidden" name="id"><div class="modal-body"><div class="form-grid"><div class="field"><label>Mercado</label><select class="select" name="marketId" id="promoMarketId" required></select></div><div class="field"><label>Unidade</label><select class="select" name="unitId" id="promoUnitId" required></select></div><div class="field full"><label>Produto exatamente como ofertado</label><input class="input" name="productName" required maxlength="160" placeholder="Ex.: Chocolate Lacta ao Leite 90g"></div><div class="field"><label>Categoria</label><input class="input" name="category" list="categoryList" required placeholder="Ex.: chocolate"></div><div class="field"><label>Marca</label><input class="input" name="brand" maxlength="80"></div><div class="field"><label>Embalagem/tamanho</label><input class="input" name="packageText" maxlength="80" placeholder="Ex.: 90g"></div><div class="field"><label>Preço promocional (R$)</label><input class="input" name="price" type="number" min="0.01" step="0.01" required></div><div class="field"><label>Preço anterior (R$)</label><input class="input" name="previousPrice" type="number" min="0" step="0.01"></div><div class="field"><label>Início</label><input class="input" name="startAt" type="datetime-local" required></div><div class="field"><label>Validade</label><input class="input" name="endAt" type="datetime-local" required></div><div class="field"><label>Origem</label><select class="select" name="sourceType" required><option value="whatsapp">WhatsApp do mercado</option><option value="encarte">Encarte/oferta oficial</option><option value="site">Site oficial</option><option value="manual">Informação conferida manualmente</option></select></div><div class="field"><label>Referência/origem</label><input class="input" name="sourceReference" required maxlength="250" placeholder="Ex.: WhatsApp recebido em 09/08/2026 14:00"></div><div class="field"><label>Tipo de preço</label><select class="select" name="priceKind"><option value="general">Preço geral</option><option value="club">Preço Clube/programa</option><option value="condition">Preço com outra condição</option></select></div><div class="field"><label>Programa/Clube (opcional)</label><input class="input" name="clubName" maxlength="80" placeholder="Ex.: Clube Compre Mix"></div><div class="field full"><label>Condições/exceções (opcional)</label><input class="input" name="conditions" maxlength="250" placeholder="Ex.: limite 4 kg por cliente; exceto zero; enquanto houver estoque"></div><div class="field full"><label>Aliases para correspondência (opcional)</label><input class="input" name="aliases" maxlength="250" placeholder="chocolate, barra de chocolate"></div><label class="checkline full"><input type="checkbox" name="verified" required><span><strong>Confirmei o preço e a validade desta oferta.</strong> O registro representa um valor real informado/conferido, não um dado fictício.</span></label><label class="checkline full"><input type="checkbox" name="active" checked><span>Publicar como ativa</span></label></div><datalist id="categoryList"><option value="arroz"><option value="feijao"><option value="cafe"><option value="leite"><option value="chocolate"><option value="acucar"><option value="oleo"><option value="macarrao"><option value="carne"><option value="frango"><option value="refrigerante"><option value="detergente"><option value="papel_higienico"></datalist></div><div class="modal-foot"><button class="btn btn-secondary" type="button" data-close-modal="promotionModal">Cancelar</button><button class="btn btn-primary" type="submit">Salvar promoção</button></div></form></div></div>
+
+  <div id="pdfReviewModal" class="modal" hidden>
+    <div class="modal-panel pdf-review-panel">
+      <div class="modal-head">
+        <div><strong>Conferir oferta do encarte</strong><div class="small muted" id="pdfReviewSource">Página do PDF</div></div>
+        <button type="button" class="icon-btn" data-close-modal="pdfReviewModal">✕</button>
+      </div>
+      <form id="pdfReviewForm">
+        <input type="hidden" name="candidateId">
+        <div class="modal-body">
+          <div class="pdf-preview-wrap"><canvas id="pdfReviewCanvas"></canvas></div>
+          <div class="form-grid" style="margin-top:16px">
+            <div class="field full"><label>Produto exatamente como aparece no encarte</label><input class="input" name="productName" required maxlength="160"></div>
+            <div class="field"><label>Categoria</label><input class="input" name="category" required></div>
+            <div class="field"><label>Marca (se identificável)</label><input class="input" name="brand" maxlength="80"></div>
+            <div class="field"><label>Embalagem/tamanho</label><input class="input" name="packageText" maxlength="80"></div>
+            <div class="field"><label>Preço que será exibido</label><input class="input" name="price" type="number" min="0.01" step="0.01" required></div>
+            <div class="field"><label>Preço normal/anterior</label><input class="input" name="previousPrice" type="number" min="0" step="0.01"></div>
+            <div class="field"><label>Tipo do preço</label><select class="select" name="priceKind" required><option value="">Selecione...</option><option value="general">Preço geral</option><option value="club">Preço Clube/programa</option><option value="condition">Preço com outra condição</option></select></div>
+            <div class="field"><label>Programa/Clube</label><input class="input" name="clubName" maxlength="80"></div>
+            <div class="field full"><label>Condições, limites e exceções</label><textarea class="textarea" name="conditions" placeholder="Ex.: limite 4 kg por cliente; exceto zero; enquanto houver estoque"></textarea></div>
+            <div class="field"><label>Início</label><input class="input" name="startAt" type="datetime-local" required></div>
+            <div class="field"><label>Fim</label><input class="input" name="endAt" type="datetime-local" required></div>
+            <label class="checkline full"><input type="checkbox" name="verified"><span><strong>Conferência manual.</strong> Use somente quando o motor enviou este item para revisão e você confirmou produto, embalagem, preço, condição e validade no recorte.</span></label>
+          </div>
+          <div class="pdf-detected-prices small muted" id="pdfDetectedPrices"></div>
+        </div>
+        <div class="modal-foot pdf-review-actions">
+          <button class="btn btn-danger" id="pdfIgnoreCandidateBtn" type="button">Excluir da importação</button>
+          <span class="pdf-review-spacer"></span>
+          <button class="btn btn-secondary" type="button" data-close-modal="pdfReviewModal">Cancelar</button>
+          <button class="btn btn-primary" type="submit">Salvar conferência</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="inboxModal" class="modal" hidden><div class="modal-panel"><div class="modal-head"><strong>Registrar promoção recebida</strong><button type="button" class="icon-btn" data-close-modal="inboxModal">✕</button></div><form id="inboxForm"><div class="modal-body"><div class="form-grid"><div class="field"><label>Mercado (opcional)</label><select class="select" name="marketId" id="inboxMarketId"></select></div><div class="field"><label>Origem</label><select class="select" name="sourceType"><option value="whatsapp">WhatsApp</option><option value="encarte">Encarte</option><option value="outro">Outro</option></select></div><div class="field full"><label>Conteúdo original</label><textarea class="textarea" name="rawText" required placeholder="Cole aqui a mensagem recebida do mercado..."></textarea></div></div></div><div class="modal-foot"><button class="btn btn-secondary" type="button" data-close-modal="inboxModal">Cancelar</button><button class="btn btn-primary" type="submit">Registrar para revisão</button></div></form></div></div>
+
+  <div id="deleteEntityModal" class="modal" hidden>
+    <div class="modal-panel delete-entity-panel">
+      <div class="modal-head"><div><strong id="deleteEntityTitle">Excluir definitivamente</strong><div class="small muted">Operação destrutiva disponível somente ao SuperAdmin.</div></div><button type="button" class="icon-btn" data-close-modal="deleteEntityModal">✕</button></div>
+      <form id="deleteEntityForm">
+        <div class="modal-body">
+          <div class="delete-warning"><strong>⚠ Exclusão definitiva</strong><p>Desativar é reversível. Excluir remove o registro do banco e não possui botão de restauração.</p></div>
+          <div class="delete-entity-name" id="deleteEntityName"></div>
+          <div id="deleteEntityImpact" class="delete-entity-impact"></div>
+          <div class="field" style="margin-top:16px"><label id="deleteEntityConfirmLabel" for="deleteEntityConfirmText">Digite o nome para confirmar</label><input class="input" id="deleteEntityConfirmText" autocomplete="off" spellcheck="false"></div>
+        </div>
+        <div class="modal-foot"><button class="btn btn-secondary" type="button" data-close-modal="deleteEntityModal">Cancelar</button><button class="btn btn-danger" id="deleteEntityConfirmBtn" type="submit" disabled>Excluir definitivamente</button></div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="footer"><div class="shell">Powered by <strong>thIAguinho Soluções Digitais</strong> · Mercador IA V3.3.0</div></footer>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-database-compat.js"></script>
+  <script src="./js/firebase-config.js?v=2.8.0"></script>
+  <script src="./js/utils.js?v=2.8.0"></script>
+  <script src="./js/auth.js?v=2.8.0"></script>
+  <script src="./js/smart-matcher.js?v=2.8.0"></script>
+  <script src="./js/pdf-encarte-importer.js?v=3.2.0"></script>
+  <script src="./js/pdf-encarte-ocr-fallback.js?v=3.2.0"></script>
+  <script src="./js/pdf-encarte-card-resolver.js?v=3.2.0"></script>
+  <script src="./js/document-encarte-importer.js?v=3.2.0"></script>
+  <script src="./js/pdf-encarte-ai-knowledge.js?v=7.1.0"></script>
+  <script src="./js/admin.js?v=3.4.0"></script>
+  <script src="./js/pwa.js?v=3.4.0"></script>
+</body>
+</html>

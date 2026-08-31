@@ -1,0 +1,8 @@
+{
+  "name": "Mercador IA",
+  "version": "3.4.0",
+  "build": "mercador-ia-v3.4-list-usability-importer-fail-closed",
+  "date": "2026-08-31",
+  "documentEngine": "7.1.0-professional-multimodal-consensus",
+  "knowledgeSchema": "mercador.encarte.knowledge.v7"
+}

@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Mercador IA — Sua Compra</title>
+    <!-- Build consumidor: V2.9 · nota por câmera/galeria + finalização diferencial/idempotente -->
+    <meta name="theme-color" content="#007aff"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="apple-touch-icon" href="./assets/icon-192.png">
+    
+    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-database-compat.js"></script>
+    
+    <script src="./js/firebase-config.js?v=2.8.0"></script>
+    <script src="./js/utils.js?v=2.8.0"></script>
+    <script src="./js/auth.js?v=2.8.0"></script>
+    <script src="./js/smart-matcher.js?v=2.8.0"></script>
+
+    <style>
+        :root {
+            --cor-fundo: #dee2e6; --cor-container: #f8f9fa; --cor-primaria: #007aff;
+            --cor-sucesso: #34c759; --cor-perigo: #ff3b30; --cor-aviso: #ff9500;
+            --cor-texto-principal: #212529; --cor-texto-secundario: #6c757d;
+            --cor-borda: #ced4da; --sombra-painel: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --raio-borda: 16px; --font-principal: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --font-mono: 'Courier New', monospace;
+        }
+        html, body { height: 100%; overflow: hidden; font-family: var(--font-principal); background-color: var(--cor-fundo); color: var(--cor-texto-principal); }
+        #update-banner { display: none; background-color: var(--cor-aviso); color: white; padding: 10px; text-align: center; position: fixed; top: 0; width: 100%; z-index: 6000; }
+        #update-banner button { border: 1px solid white; background: transparent; color: white; padding: 5px 10px; border-radius: 5px; margin-left: 15px; cursor: pointer; }
+        #install-banner{display:none;position:fixed;bottom:10px;left:10px;right:10px;background-color:var(--cor-container);color:var(--cor-texto-principal);padding:15px;border-radius:var(--raio-borda);box-shadow:0 8px 24px rgba(0,0,0,0.2);z-index:5000;align-items:center;justify-content:space-between;animation:slideUp 0.5s ease-out}
+        #install-banner p{margin:0;font-size:0.9rem;line-height:1.3}
+        #install-banner-buttons{display:flex;gap:10px}
+        #install-btn,#dismiss-btn{border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer}
+        #install-btn{background-color:var(--cor-primaria);color:white}
+        #dismiss-btn{background-color:transparent;color:var(--cor-texto-secundario)}
+        @keyframes slideUp{from{transform:translateY(150%);opacity:0}to{transform:translateY(0);opacity:1}}
+        .app-container{display:flex;flex-direction:column;height:100%; visibility: hidden;}
+        .app-container.loaded { visibility: visible; }
+        .header-section{padding:10px 15px;background-color:var(--cor-container);box-shadow:0 2px 4px rgba(0,0,0,0.1);z-index:10;flex-shrink:0}
+        .top-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+        .top-bar h1{font-size:1.2rem;margin:0}
+        #header-total{font-size:1.5rem;font-weight:bold;color:var(--cor-sucesso)}
+        .header-controls{display:flex;gap:10px;align-items:center}
+        #form-adicionar-item{display:flex;gap:10px;flex-grow:1}
+        #input-novo-item{flex-grow:1;padding:12px;border-radius:10px;border:1px solid var(--cor-borda);font-size:1rem;height:50px}
+        .btn{padding:12px;border:none;border-radius:10px;font-size:1.5rem;font-weight:600;cursor:pointer;transition:all 0.2s;color:white;display:flex;align-items:center;justify-content:center;width:50px;height:50px;flex-shrink:0}
+        .btn-primary{background-color:var(--cor-primaria)}
+        .btn-success{background-color:var(--cor-sucesso)}
+        .main-content{flex-grow:1;overflow-y:auto;padding:15px}
+        .tabs{display:flex;gap:10px;margin-bottom:15px}
+        .tab-btn{flex:1;padding:10px;background:#e9ecef;border:none;border-radius:8px;font-size:1rem;font-weight:500;cursor:pointer;transition:all 0.2s;color:var(--cor-texto-secundario)}
+        .tab-btn.active{background-color:var(--cor-primaria);color:white}
+        .tab-btn[data-tab="adiados"].action-mode{background-color:var(--cor-aviso);color:white;font-weight:bold}
+        .list-container{display:none;min-width:0}
+        .list-container.active{display:block}
+        .item-list{list-style:none;padding:0;contain:layout style paint;min-width:0}
+        .item-row,.report-item{content-visibility:auto;contain-intrinsic-size:92px 1px}
+        .light-loading{display:flex;align-items:center;justify-content:center;gap:9px;padding:24px;color:var(--cor-texto-secundario);font-size:.82rem}
+        .light-loading span:first-child{width:18px;height:18px;border:2px solid #d9e0e6;border-top-color:var(--cor-primaria);border-radius:50%;animation:spin-lite .75s linear infinite}
+        @keyframes spin-lite{to{transform:rotate(360deg)}}
+        .item-row, .report-item{display:flex;align-items:center;padding:10px;background:var(--cor-container);border-radius:12px;margin-bottom:10px;box-shadow:var(--sombra-painel);transition:all 0.3s ease;cursor:pointer}
+        .report-item:hover{transform:scale(1.02); box-shadow:0 0 0 2px var(--cor-primaria);}
+        .item-row.status-comprado{opacity:0.7}
+        .item-row.status-comprado .item-name{text-decoration:line-through}
+        .item-row.status-adiado{border-left:5px solid var(--cor-aviso);opacity:0.8}
+        .item-row.active{box-shadow:0 0 0 3px var(--cor-primaria),0 4px 12px rgba(0,122,255,0.3);transform:scale(1.02)}
+        .item-emoji{font-size:1.5rem;margin-right:10px;user-select:none}
+        .item-details, .report-details{display:flex;flex-direction:column;flex-grow:1;pointer-events:none}
+        .item-name, .report-date{font-size:1.2rem;font-weight:500}
+        .report-location{font-size: 1rem; color: var(--cor-texto-principal); font-weight: 500;}
+        .item-price-info, .report-total{font-size:0.9rem;color:var(--cor-texto-secundario)}
+        .delete-btn, .delete-report-btn{background:none;border:none;cursor:pointer;padding:5px;margin-left:10px; flex-shrink: 0;}
+        .calculator-footer{flex-shrink:0;background-color:#212529;padding:0 15px 15px 15px;border-top:2px solid #495057;position:relative}
+        #toggle-calc-btn{position:absolute;top:-25px;left:50%;transform:translateX(-50%);width:50px;height:25px;background-color:#212529;border:2px solid #495057;border-bottom:none;border-radius:10px 10px 0 0;color:#adb5bd;cursor:pointer}
+        #toggle-calc-btn svg{transition:transform 0.4s ease}
+        .calculator-footer.collapsed #toggle-calc-btn svg{transform:rotate(180deg)}
+        .calculator-body{overflow:hidden;max-height:300px;transition:max-height 0.4s ease-out,padding-top 0.4s ease-out,opacity 0.3s ease-out;padding-top:15px;opacity:1}
+        .calculator-footer.collapsed .calculator-body{max-height:0;padding-top:0;opacity:0}
+        .calculator-display-wrapper{background:#000;border-radius:10px;padding:5px 10px;margin-bottom:10px;border:2px solid #495057}
+        #active-item-display{color:#adb5bd;font-size:0.8rem;text-align:right;height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        #calc-display{font-family:var(--font-mono);color:#4eff89;text-shadow:0 0 5px #4eff89,0 0 8px #4eff89;font-size:2.5rem;text-align:right}
+        .keypad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+        .keypad button{font-size:1.3rem;font-weight:bold;border:none;border-radius:8px;background-color:#495057;color:#f8f9fa;height:48px;transition:all 0.1s}
+        .keypad button:active{transform:scale(0.95);background-color:#6c757d}
+        .keypad .operator{background-color:#ff9f0a}
+        .keypad .action{background-color:var(--cor-sucesso);font-size:1.7rem}
+        .keypad .clear{background-color:var(--cor-perigo)}
+        .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:opacity 0.3s;z-index:2000}
+        .modal-overlay.visible{opacity:1;visibility:visible}
+        .modal-content{background:#f0f1f6;padding:20px;border-radius:var(--raio-borda);width:90%;max-width:400px; display: flex; flex-direction: column;}
+        #report-paper, #report-view-content{background:white;padding:20px;font-family:'Courier New',Courier,monospace;white-space:pre-wrap;max-height:60vh;overflow-y:auto;border:1px dashed #ccc;margin-bottom:20px}
+        .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+        #back-button { padding: 8px 16px; font-size: 1rem; background-color: #e9ecef; border: none; border-radius: 8px; cursor: pointer; color: #495057; text-decoration: none;}
+
+        /* MERCADOR IA V1.2: a Lista Inteligente original permanece intacta no celular.
+           As regras abaixo só acrescentam responsividade para telas maiores e o painel de ofertas. */
+        .geo-promo-strip{background:var(--cor-container);border-radius:12px;margin-bottom:12px;box-shadow:var(--sombra-painel);overflow:hidden}
+        .geo-promo-toggle{width:100%;border:0;background:transparent;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font:inherit;color:var(--cor-texto-principal);cursor:pointer;text-align:left}
+        .geo-promo-toggle strong{font-size:.95rem}.geo-promo-toggle span{font-size:.82rem;color:var(--cor-texto-secundario)}
+        .geo-promo-body{display:none;border-top:1px solid var(--cor-borda);padding:12px}.geo-promo-strip.open .geo-promo-body{display:block}
+        .geo-promo-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+        .geo-promo-controls select,.geo-promo-controls button{min-height:40px;border-radius:9px;border:1px solid var(--cor-borda);padding:8px 10px;font:inherit}
+        .geo-promo-controls button{border:none;background:var(--cor-primaria);color:white;font-weight:650;cursor:pointer;flex:1;min-width:190px}
+        .geo-promo-status{font-size:.85rem;color:var(--cor-texto-secundario);margin-bottom:8px;line-height:1.35}.geo-promo-status.live{color:#157a35;font-weight:750}.geo-promo-status.warn{color:#9a5b00;font-weight:650}
+        .geo-offer{background:white;border:1px solid var(--cor-borda);border-radius:11px;padding:11px;margin-top:8px}
+        .geo-offer-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.geo-offer-name{font-weight:700}.geo-offer-price{font-size:1.15rem;font-weight:800;color:var(--cor-sucesso);white-space:nowrap}
+        .geo-offer-meta{font-size:.82rem;color:var(--cor-texto-secundario);margin-top:5px;line-height:1.35}.geo-offer-actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}.geo-offer-actions a{font-size:.82rem;color:var(--cor-primaria);font-weight:700;text-decoration:none}
+        @media (min-width: 900px){
+            body{display:flex;justify-content:center;align-items:stretch;padding:0 20px;box-sizing:border-box}
+            .app-container{width:min(920px,100%);box-shadow:0 0 30px rgba(0,0,0,.12);background:var(--cor-fundo)}
+            .header-section{padding:14px 20px}.main-content{padding:20px}.calculator-footer{padding-left:20px;padding-right:20px}
+            .top-bar h1{font-size:1.35rem}#header-total{font-size:1.65rem}.item-row,.report-item{padding:13px 15px}.item-name,.report-date{font-size:1.15rem}
+        }
+
+        /* === MERCADOR IA V1.3 — CHECKOUT INTELIGENTE ===
+           Camada de UX sobre a lista original. Não remove calculadora, relatórios,
+           estados nem persistência da V1.2. */
+        *,*::before,*::after{box-sizing:border-box}
+        html,body{width:100%;max-width:100vw;overflow-x:hidden;overscroll-behavior-x:none}
+        body{margin:0}
+        button,input,select{max-width:100%}
+        .app-container{width:100%;max-width:100vw;overflow-x:hidden}
+        .header-section{padding:10px 12px 11px;position:relative}
+        .top-bar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin-bottom:10px}
+        .purchase-title{min-width:0;text-align:center;line-height:1.05}
+        .purchase-title h1{margin:0;font-size:clamp(1.05rem,4.5vw,1.28rem);white-space:nowrap}
+        #purchase-progress{display:block;margin-top:4px;color:var(--cor-texto-secundario);font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        #header-total{font-size:clamp(1.22rem,5vw,1.55rem);line-height:1;white-space:nowrap}
+        #back-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:8px 11px;font-size:.9rem;font-weight:700;white-space:nowrap}
+        .header-controls{display:grid;grid-template-columns:minmax(0,1fr) 50px;gap:8px;width:100%;min-width:0}
+        #form-adicionar-item{display:grid;grid-template-columns:minmax(0,1fr) 50px;gap:8px;min-width:0}
+        #input-novo-item{width:100%;min-width:0;height:50px;padding:11px 13px;font-size:1rem;background:#fff}
+        .header-controls>.btn,#form-adicionar-item>.btn{width:50px;height:50px;padding:0;border-radius:12px}
+        .main-content{padding:12px;overflow-x:hidden;scrollbar-gutter:stable}
+        .geo-promo-strip{margin:0 0 10px;border:1px solid rgba(0,122,255,.12);box-shadow:0 2px 9px rgba(0,0,0,.055)}
+        .geo-promo-toggle{padding:10px 11px;min-width:0}
+        .geo-promo-toggle>strong{min-width:0;white-space:nowrap}
+        .geo-promo-toggle>span{min-width:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .geo-promo-body{padding:10px 11px;background:#fff}
+        .geo-promo-controls{display:grid;grid-template-columns:minmax(82px,.35fr) minmax(0,1fr);gap:8px;margin-bottom:8px}
+        .geo-promo-controls select,.geo-promo-controls button{width:100%;min-width:0;min-height:42px}
+        #geo-promo-results{font-size:.83rem;color:var(--cor-texto-secundario)}
+        .tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;width:100%;margin-bottom:11px;overflow:visible}
+        .tab-btn{min-width:0;width:100%;padding:9px 4px;border-radius:10px;font-size:clamp(.72rem,3.2vw,.94rem);line-height:1.15;white-space:normal;overflow-wrap:anywhere}
+        .item-list{margin:0;width:100%;min-width:0}
+        .item-row,.report-item{width:100%;min-width:0;margin-bottom:9px;padding:11px 10px;border:1px solid rgba(33,37,41,.055);box-shadow:0 3px 10px rgba(0,0,0,.06);transform:none!important;overflow:hidden}
+        .item-row{align-items:flex-start}
+        .item-row.active{box-shadow:inset 0 0 0 2px var(--cor-primaria),0 4px 14px rgba(0,122,255,.14);transform:none!important}
+        .item-emoji{font-size:1.55rem;margin-right:9px;line-height:1.2}
+        .item-details,.report-details{min-width:0;max-width:100%;overflow:hidden}
+        .item-name,.report-location,.report-date,.item-price-info,.report-total{overflow-wrap:anywhere;word-break:break-word}
+        .item-name{font-size:clamp(1.02rem,4vw,1.18rem);font-weight:700;line-height:1.18}
+        .delete-btn,.delete-report-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;padding:7px;margin-left:6px;border-radius:9px;background:rgba(255,59,48,.07)}
+        .item-offer-zone{pointer-events:auto;margin-top:7px;padding-top:7px;border-top:1px solid #edf0f2;min-width:0}
+        .item-offer-best{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px;align-items:center;min-width:0;font-size:.79rem;line-height:1.2;color:#35515f}
+        .item-offer-flame{font-size:.86rem}
+        .item-offer-market{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
+        .item-offer-price{color:#16883a;font-size:.9rem;font-weight:800;white-space:nowrap}
+        .item-offer-sub{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:5px;min-width:0}
+        .item-offer-distance{min-width:0;color:var(--cor-texto-secundario);font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .item-offer-action{pointer-events:auto;border:0;background:transparent;color:var(--cor-primaria);padding:2px 0;font:inherit;font-size:.76rem;font-weight:800;cursor:pointer;white-space:nowrap}
+        .item-offer-zone.no-offer{padding-top:6px;color:#8b949e;font-size:.72rem;border-top-style:dashed}
+        .calculator-footer{padding:0 10px max(10px,env(safe-area-inset-bottom));border-top:1px solid #495057;box-shadow:0 -5px 18px rgba(0,0,0,.14)}
+        #toggle-calc-btn{top:-31px;width:auto;min-width:116px;height:32px;padding:0 10px;gap:7px;display:flex;align-items:center;justify-content:center;border-radius:12px 12px 0 0;font-weight:750;font-size:.78rem;white-space:nowrap}
+        .calc-toggle-label{display:inline-block;color:#e9ecef}
+        .calculator-body{max-height:min(44vh,330px);padding-top:12px;overflow-y:auto}
+        .calculator-display-wrapper{margin-bottom:8px;padding:5px 9px}
+        #calc-display{font-size:clamp(2rem,10vw,2.55rem)}
+        .keypad{gap:7px}
+        .keypad button{height:clamp(43px,7.2vh,52px);font-size:1.16rem}
+        .modal-overlay{padding:12px}
+        .modal-content{width:min(96vw,520px);max-height:90dvh;overflow:auto}
+        .modal-actions{flex-wrap:wrap}
+        .modal-actions>div{display:flex;gap:7px;flex-wrap:wrap}
+        .offer-sheet-overlay{position:fixed;inset:0;z-index:7000;background:rgba(8,15,22,.52);display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s ease;padding:0}
+        .offer-sheet-overlay.visible{opacity:1;visibility:visible}
+        .offer-sheet{width:min(100%,680px);max-height:min(84dvh,760px);background:#f7f8fa;border-radius:20px 20px 0 0;box-shadow:0 -16px 50px rgba(0,0,0,.22);overflow:hidden;transform:translateY(18px);transition:transform .22s ease;display:flex;flex-direction:column}
+        .offer-sheet-overlay.visible .offer-sheet{transform:translateY(0)}
+        .offer-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px 12px;background:#fff;border-bottom:1px solid #e5e8eb;position:sticky;top:0;z-index:2}
+        .offer-sheet-title{min-width:0}.offer-sheet-title strong{display:block;font-size:1.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.offer-sheet-title span{display:block;margin-top:3px;font-size:.78rem;color:var(--cor-texto-secundario)}
+        .offer-sheet-close{width:38px;height:38px;border:0;border-radius:50%;background:#eef1f4;font-size:1.25rem;cursor:pointer;flex:0 0 auto}
+        .offer-sheet-body{padding:12px;overflow-y:auto;overscroll-behavior:contain}
+        .offer-sheet-card{background:#fff;border:1px solid #e1e5e9;border-radius:14px;padding:12px;margin-bottom:9px;box-shadow:0 2px 8px rgba(0,0,0,.045)}
+        .offer-sheet-card.best{border-color:rgba(52,199,89,.45);box-shadow:0 3px 10px rgba(52,199,89,.08)}
+        .offer-sheet-card-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start}
+        .offer-sheet-market{font-weight:800;min-width:0;overflow-wrap:anywhere}.offer-sheet-product{font-size:.82rem;color:var(--cor-texto-secundario);margin-top:3px;overflow-wrap:anywhere}
+        .offer-sheet-price{font-size:1.28rem;color:#16883a;font-weight:850;white-space:nowrap}
+        .offer-sheet-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.offer-pill{display:inline-flex;align-items:center;min-height:25px;padding:4px 7px;border-radius:999px;background:#eef2f5;color:#56616c;font-size:.72rem;font-weight:650}.offer-pill.best{background:#e7f7ec;color:#187338}
+        .offer-sheet-actions{display:flex;gap:8px;margin-top:10px}.offer-sheet-actions a{flex:1;text-align:center;text-decoration:none;background:var(--cor-primaria);color:#fff;padding:9px;border-radius:9px;font-size:.8rem;font-weight:800}
+        @media (max-width:390px){
+            #back-button{width:42px;padding:8px 5px}#back-button span{display:none}
+            .top-bar{gap:7px}.header-section{padding-left:9px;padding-right:9px}.main-content{padding-left:9px;padding-right:9px}
+            .geo-promo-toggle{display:grid;grid-template-columns:minmax(0,1fr);gap:3px}.geo-promo-toggle>span{text-align:left}
+            .tab-btn{padding-left:2px;padding-right:2px;font-size:.7rem}
+            .item-row,.report-item{padding-left:8px;padding-right:8px}.item-emoji{margin-right:7px}
+        }
+        @media (min-width:700px){
+            .header-section{padding:14px 18px}.main-content{padding:16px 18px}.tabs{gap:8px}.tab-btn{padding:11px 8px}
+            .item-row,.report-item{padding:13px 14px}.geo-promo-controls{grid-template-columns:130px minmax(0,1fr)}
+            .calculator-body{max-height:355px}.keypad button{height:52px}
+        }
+        @media (min-width:900px){
+            body{padding:0 20px}.app-container{width:min(980px,100%)}.main-content{padding:18px 22px}.header-section{padding:15px 22px}
+            .calculator-footer{padding-left:22px;padding-right:22px}.offer-sheet{border-radius:20px;margin-bottom:18px;max-height:78vh}.offer-sheet-overlay{padding:18px;align-items:flex-end}
+        }
+
+        /* Mercador IA V2.4 — fluxo mobile profissional */
+        input,button,select,textarea{font-family:inherit}
+        input,select,textarea{font-size:16px}
+        .header-section{padding-top:max(10px,env(safe-area-inset-top))}
+        .smart-status-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px;align-items:stretch;min-width:0}
+        .smart-pill{display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;padding:5px 7px;border-radius:999px;background:#edf1f5;color:#53606c;font-size:.69rem;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .smart-pill strong{color:#26313a}
+        .smart-pill.offer{background:#e9f8ee;color:#177337}
+        .smart-suggestions{display:flex;gap:6px;flex-wrap:wrap;overflow:visible;padding:7px 1px 1px}
+                .smart-suggestion{flex:0 1 auto;border:1px solid #dfe5ea;background:#fff;color:#34424e;border-radius:999px;padding:7px 10px;font-size:.78rem;font-weight:700;cursor:pointer;max-width:210px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .smart-suggestion:hover{border-color:#b7c8d8;background:#f8fbfd}
+        .item-row{cursor:default;display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;position:relative}
+        .item-row>.delete-btn{display:none}
+        .item-details{pointer-events:auto}.report-details{pointer-events:auto}
+        .item-main-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-width:0}
+        .item-state-hint{font-size:.72rem;color:var(--cor-texto-secundario);margin-top:4px;line-height:1.3}
+        .item-actions-inline{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;pointer-events:auto}
+        .item-action-btn{border:1px solid #dfe5ea;background:#f8fafc;color:#3e4d58;border-radius:9px;min-height:42px;padding:7px 9px;font-size:.74rem;font-weight:800;cursor:pointer}
+        .item-action-btn.primary{background:#e9f2ff;border-color:#cddfff;color:#0a63c7}
+        .item-action-btn.warn{background:#fff6e7;border-color:#ffe1ab;color:#935b00}
+        .item-action-btn.danger{background:#fff0ef;border-color:#ffd3cf;color:#b52e27;margin-left:auto}
+        .item-action-btn:active{transform:scale(.98)}
+        .tabs{position:sticky;top:-1px;z-index:8;background:var(--cor-fundo);padding:2px 0 7px}
+        .tab-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:48px}
+        .tab-count{font-size:.63rem;opacity:.78;font-weight:800}
+        .report-item{cursor:default;align-items:flex-start}
+        .report-actions{display:flex;flex-direction:column;gap:5px;margin-left:7px;flex:0 0 auto}
+        .report-action-btn{width:42px;height:40px;border:0;border-radius:9px;background:#eef2f6;display:grid;place-items:center;cursor:pointer;font-size:.9rem}
+        .report-action-btn.edit{background:#eaf3ff;color:#0869c9}
+        .report-action-btn.delete{background:#fff0ef;color:#bc3028}
+        .report-edited{display:inline-flex;margin-top:5px;padding:3px 6px;border-radius:999px;background:#fff6e7;color:#8c5906;font-size:.66rem;font-weight:800;width:max-content}
+        .report-load-more{list-style:none;text-align:center;padding:12px 4px 18px}.report-load-more button{min-height:44px;border:1px solid #cedbe7;border-radius:10px;background:#f4f8fb;color:#245b7d;font-weight:800;padding:9px 14px;cursor:pointer}.report-load-more button:disabled{opacity:.6;cursor:wait}.report-load-more small{display:block;margin-top:5px;color:#7b8790;font-size:.68rem}
+        .report-view-meta{display:grid;gap:6px;margin:-8px 0 12px;padding:10px;border-radius:10px;background:#eef3f7;font-size:.78rem;color:#53606b}
+        .report-audit{border-top:1px solid #dce2e7;margin-top:12px;padding-top:10px}
+        .report-audit h4{margin:0 0 8px;font-size:.86rem}
+        .report-audit-entry{padding:8px 0;border-bottom:1px dashed #dce2e7;font-size:.75rem;line-height:1.4;color:#5d6872}
+        .report-audit-entry:last-child{border-bottom:0}
+        .report-edit-items{display:grid;gap:8px;margin-top:10px}
+        .report-edit-row{display:grid;grid-template-columns:minmax(0,1fr) 72px 90px 38px;gap:6px;align-items:center;padding:8px;border:1px solid #dfe5ea;border-radius:10px;background:#fff}
+        .report-edit-row input{width:100%;min-width:0;padding:8px;border:1px solid #d5dde4;border-radius:8px}
+        .report-edit-remove{height:38px;border:0;border-radius:8px;background:#fff0ef;color:#b52e27;cursor:pointer}
+        .report-edit-total{margin-top:10px;text-align:right;font-weight:850;color:#16883a}
+        .report-legacy-note{padding:9px 10px;border-radius:9px;background:#fff7e8;color:#8b5900;font-size:.75rem;line-height:1.4;margin-top:10px}
+
+        .receipt-import-card{list-style:none;margin:0 0 12px;padding:12px;border:1px solid #bee3ca;border-radius:12px;background:linear-gradient(135deg,#f7fff9,#eefaf2);box-shadow:0 3px 10px rgba(23,115,55,.06)}
+        .receipt-import-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+        .receipt-import-card strong{display:block;font-size:.92rem;color:#17572e}.receipt-import-card p{margin:4px 0 0;color:#607168;font-size:.72rem;line-height:1.4}
+        .receipt-import-btn{border:0;border-radius:9px;background:#1f9d55;color:#fff;min-height:40px;padding:8px 11px;font-weight:850;cursor:pointer;white-space:nowrap}
+        .receipt-import-btn:disabled{opacity:.6;cursor:wait}
+        .receipt-help{font-size:.72rem;line-height:1.45;color:#63717a;margin:6px 0 10px}
+        .receipt-privacy{padding:8px 10px;border-radius:9px;background:#edf7f1;color:#28633c;font-size:.7rem;line-height:1.4;margin-bottom:10px}
+        .receipt-source-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
+        .receipt-source-actions button{min-height:46px;border:1px solid #cbd8d0;border-radius:11px;background:#fff;color:#30483a;font-weight:850;cursor:pointer}
+        .receipt-source-actions button:active{transform:scale(.985)}
+        .receipt-images{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:8px 0 10px}
+        .receipt-thumb{position:relative;aspect-ratio:3/4;border:1px solid #dce3df;border-radius:9px;overflow:hidden;background:#f3f5f4}
+        .receipt-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+        .receipt-thumb button{position:absolute;top:4px;right:4px;width:28px;height:28px;border:0;border-radius:50%;background:rgba(20,27,23,.8);color:#fff;font-size:.8rem;cursor:pointer}
+        .receipt-status{padding:9px 10px;border-radius:9px;background:#eef3f7;color:#53606b;font-size:.75rem;line-height:1.45;margin-top:8px}
+        .receipt-status.error{background:#fff0ef;color:#a1322b}.receipt-status.success{background:#eaf8ee;color:#1b7137}.receipt-status.warning{background:#fff7e8;color:#8b5900}
+        .receipt-progress{height:8px;border-radius:999px;background:#e4e9e6;overflow:hidden;margin:8px 0}.receipt-progress>span{display:block;height:100%;width:0;background:#1f9d55;transition:width .18s ease}
+        .receipt-review{margin-top:12px;border-top:1px solid #dbe2de;padding-top:12px}
+        .receipt-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:10px}
+        .receipt-kpi{padding:8px;border-radius:9px;background:#edf2f0;text-align:center;font-size:.67rem;color:#67736d}.receipt-kpi strong{display:block;font-size:1rem;color:#25362d}
+        .receipt-review-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.receipt-review-grid .full{grid-column:1/-1}
+        .receipt-items-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 7px}.receipt-items-head button{border:0;border-radius:8px;background:#eaf3ff;color:#0869c9;padding:7px 9px;font-weight:800;cursor:pointer}
+        .receipt-items{display:grid;gap:7px;max-height:300px;overflow:auto;padding-right:2px}
+        .receipt-item-row{display:grid;grid-template-columns:minmax(0,1fr) 66px 82px 36px;gap:5px;align-items:center;padding:7px;border:1px solid #dfe5e1;border-radius:10px;background:#fff;position:relative}
+        .receipt-item-row input{width:100%;min-width:0;padding:7px 6px;border:1px solid #d4ddd7;border-radius:8px;background:#fff}
+        .receipt-item-row.low{border-color:#f0c36f;background:#fffaf0}.receipt-item-row.medium{border-color:#d6dfb5}
+        .receipt-item-remove{height:36px;border:0;border-radius:8px;background:#fff0ef;color:#b52e27;cursor:pointer}
+        .receipt-item-confidence{grid-column:1/-1;font-size:.64rem;color:#748078;margin-top:-2px}.receipt-item-confidence strong{color:#496153}
+        .receipt-reconcile{margin-top:9px;padding:8px 10px;border-radius:9px;background:#eef3f1;color:#506159;font-size:.72rem;line-height:1.4}.receipt-reconcile.warning{background:#fff7e8;color:#8b5900}.receipt-reconcile.ok{background:#eaf8ee;color:#1b7137}
+        .receipt-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}.receipt-actions button{min-height:42px;border:0;border-radius:9px;padding:9px 12px;font-weight:800;cursor:pointer}.receipt-actions .secondary{background:#e8edf1;color:#3f4c56}.receipt-actions .primary{background:#1f9d55;color:#fff}.receipt-actions button:disabled{opacity:.6;cursor:wait}
+        .finalize-state{font-size:.72rem;color:#53606b;margin-top:8px;min-height:18px;text-align:right}.finalize-state.error{color:#a1322b}.finalize-state.success{color:#1b7137}
+        @media(max-width:430px){.receipt-images{grid-template-columns:repeat(3,minmax(0,1fr))}.receipt-review-grid{grid-template-columns:1fr}.receipt-review-grid .full{grid-column:auto}.receipt-item-row{grid-template-columns:minmax(0,1fr) 58px 72px 34px}.receipt-item-row input{font-size:14px;padding:7px 4px}}
+
+        .powered-user-footer{text-align:center;color:#aeb6bd;font-size:.66rem;padding:8px 0 0;line-height:1.25}
+        .powered-user-footer strong{color:#e5eaee}
+        .modal-content h3{margin-bottom:12px}
+        .modal-field{display:grid;gap:5px;margin-bottom:12px}
+        .modal-field label{font-size:.78rem;font-weight:800;color:#5c6872}
+        .modal-field input,.modal-field textarea{width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid var(--cor-borda);border-radius:9px;background:#fff}
+        .modal-field textarea{min-height:76px;resize:vertical}
+        @media(max-width:430px){
+            .header-controls{grid-template-columns:minmax(0,1fr) 48px}.header-controls>.btn,#form-adicionar-item>.btn{width:48px;height:48px}
+            #form-adicionar-item{grid-template-columns:minmax(0,1fr) 48px}.smart-status-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.smart-pill{padding:5px 6px;font-size:.67rem}
+            .item-actions-inline{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.item-action-btn{padding:6px 4px;min-width:0}.item-action-btn.danger{margin-left:0}
+            .report-edit-row{grid-template-columns:minmax(0,1fr) 62px 78px 36px;gap:4px;padding:6px}.report-edit-row input{padding:7px 5px;font-size:14px}
+        }
+    
+        /* Mercador IA — usabilidade da lista sem alterar o fluxo de compra */
+        .list-tools{display:grid;grid-template-columns:minmax(170px,1.4fr) minmax(120px,.7fr) minmax(145px,.8fr) auto;gap:7px;align-items:center;margin:-2px 0 10px;padding:9px;border:1px solid rgba(33,37,41,.09);border-radius:12px;background:rgba(248,249,250,.86);box-shadow:0 2px 8px rgba(0,0,0,.035);position:sticky;top:55px;z-index:7;backdrop-filter:blur(10px)}
+        .list-tools[hidden]{display:none!important}
+        .list-search-wrap{position:relative;min-width:0}
+        .list-search{width:100%;height:40px;box-sizing:border-box;padding:8px 36px 8px 11px;border:1px solid var(--cor-borda);border-radius:9px;background:#fff;color:var(--cor-texto-principal);font:inherit;font-size:.86rem}
+        .list-search:focus,.list-view-select:focus{outline:2px solid rgba(0,122,255,.22);border-color:var(--cor-primaria)}
+        .list-search-clear{position:absolute;right:5px;top:5px;width:30px;height:30px;border:0;border-radius:7px;background:transparent;color:var(--cor-texto-secundario);cursor:pointer;font-size:1rem}
+        .list-search-clear:hover{background:#eef1f4}.list-search-clear[hidden]{display:none}
+        .list-view-select{height:40px;min-width:0;width:100%;padding:7px 8px;border:1px solid var(--cor-borda);border-radius:9px;background:#fff;color:var(--cor-texto-principal);font:inherit;font-size:.78rem;font-weight:700}
+        .list-view-select:disabled{opacity:.55;cursor:not-allowed}
+        .list-view-summary{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:17px;color:var(--cor-texto-secundario);font-size:.68rem;line-height:1.25}
+        .list-view-summary strong{color:var(--cor-texto-principal)}
+        .list-empty-filter{margin:8px 0 16px;padding:18px 12px;text-align:center;border:1px dashed var(--cor-borda);border-radius:12px;background:rgba(248,249,250,.65);color:var(--cor-texto-secundario);font-size:.84rem;line-height:1.4}
+        @media(max-width:720px){.list-tools{grid-template-columns:minmax(0,1fr) minmax(110px,.72fr);top:55px}.list-search-wrap{grid-column:1/-1}.list-view-summary{grid-column:1/-1}.list-view-select{font-size:.73rem}}
+        @media(max-width:390px){.list-tools{padding:7px;gap:6px}.list-view-select{font-size:.68rem;padding-left:5px;padding-right:4px}}
+
+        /* Mercador IA V2.8 — troca de abas instantânea */
+        .tab-btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+        .list-container{contain:layout style paint}
+</style>
+</head>
+<body>
+    <div id="update-banner">
+        Nova versão disponível!
+        <button id="update-btn">Atualizar</button>
+    </div>
+
+    <div id="install-banner">
+        <p>Leve sua lista de compras para a tela inicial!</p>
+        <div id="install-banner-buttons">
+            <button id="dismiss-btn">Agora não</button>
+            <button id="install-btn">Instalar</button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <header class="header-section">
+            <div class="top-bar">
+                <a href="./inicio.html" id="back-button">⌂ <span>Início</span></a>
+                <div class="purchase-title"><h1>Sua Compra</h1><span id="purchase-progress">Carregando lista...</span></div>
+                <div id="header-total">R$ 0,00</div>
+            </div>
+            <div class="header-controls">
+                <form id="form-adicionar-item" autocomplete="off">
+                    <input type="text" id="input-novo-item" placeholder="O que está faltando?" aria-label="Adicionar produto à lista">
+                    <button type="submit" class="btn btn-primary" title="Adicionar produto">+</button>
+                </form>
+                <button id="btn-finalizar" class="btn btn-success" title="Finalizar compra e gerar relatório">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                </button>
+            </div>
+            <div id="smart-suggestions" class="smart-suggestions" hidden aria-label="Sugestões de produtos"></div>
+            <div class="smart-status-row" aria-label="Resumo da compra">
+                <span class="smart-pill">📝 <strong id="smart-pending-count">0</strong> faltando</span>
+                <span class="smart-pill">🛒 <strong id="smart-bought-count">0</strong> no carrinho</span>
+                <span class="smart-pill">⏸ <strong id="smart-deferred-count">0</strong> adiados</span>
+                <span class="smart-pill offer">🔥 <strong id="smart-offer-count">0</strong> com oferta</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <section id="geo-promo-strip" class="geo-promo-strip" aria-label="Promoções próximas">
+                <button id="geo-promo-toggle" class="geo-promo-toggle" type="button">
+                    <strong>🔥 Ofertas perto de você</strong><span id="geo-promo-summary">Ative a localização para comparar</span>
+                </button>
+                <div class="geo-promo-body">
+                    <div class="geo-promo-controls">
+                        <select id="geo-promo-radius" aria-label="Raio de busca">
+                            <option value="1">1 km</option><option value="3">3 km</option><option value="5" selected>5 km</option><option value="10">10 km</option><option value="25">25 km</option>
+                        </select>
+                        <button id="geo-promo-locate" type="button">Ativar localização em tempo real</button>
+                    </div>
+                    <div id="geo-promo-status" class="geo-promo-status">O GPS acompanha sua posição enquanto esta lista estiver aberta. Sua localização não é salva no Firebase.</div>
+                    <div id="geo-promo-results"></div>
+                </div>
+            </section>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="faltando"><span>A Comprar</span><small class="tab-count" id="tab-count-faltando">0</small></button>
+                <button class="tab-btn" data-tab="comprados"><span>Comprados</span><small class="tab-count" id="tab-count-comprados">0</small></button>
+                <button class="tab-btn" data-tab="adiados"><span>Adiados</span><small class="tab-count" id="tab-count-adiados">0</small></button>
+                <button class="tab-btn" data-tab="relatorios"><span>Relatórios</span><small class="tab-count" id="tab-count-relatorios">0</small></button>
+            </div>
+            <div id="list-tools" class="list-tools" aria-label="Ferramentas da lista">
+                <div class="list-search-wrap">
+                    <input id="list-search" class="list-search" type="search" autocomplete="off" placeholder="Buscar nesta lista" aria-label="Buscar produto nesta lista">
+                    <button id="list-search-clear" class="list-search-clear" type="button" title="Limpar busca" aria-label="Limpar busca" hidden>✕</button>
+                </div>
+                <select id="list-offer-filter" class="list-view-select" aria-label="Filtrar por ofertas">
+                    <option value="all">Todos os itens</option>
+                    <option value="with_offer">Com oferta</option>
+                    <option value="without_offer">Sem oferta</option>
+                </select>
+                <select id="list-sort" class="list-view-select" aria-label="Ordenar lista">
+                    <option value="original">Ordem da lista</option>
+                    <option value="alpha">A–Z</option>
+                    <option value="offers">Ofertas primeiro</option>
+                </select>
+                <div id="list-view-summary" class="list-view-summary" aria-live="polite"></div>
+            </div>
+            <div id="lista-faltando-container" class="list-container active"><ul id="lista-faltando" class="item-list"></ul></div>
+            <div id="lista-comprados-container" class="list-container"><ul id="lista-comprados" class="item-list"></ul></div>
+            <div id="lista-adiados-container" class="list-container"><ul id="lista-adiados" class="item-list"></ul></div>
+            <div id="lista-relatorios-container" class="list-container"><ul id="lista-relatorios" class="item-list"></ul></div>
+        </main>
+
+        <footer class="calculator-footer">
+            <button id="toggle-calc-btn" title="Mostrar/Ocultar Calculadora" aria-label="Abrir ou fechar caixa/calculadora"><span class="calc-toggle-label">🧮 Caixa</span><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg></button>
+            <div class="calculator-body">
+                <div class="calculator-display-wrapper">
+                    <div id="active-item-display">Nenhum item selecionado</div>
+                    <div id="calc-display">0</div>
+                </div>
+                <div class="keypad">
+                    <button>7</button><button>8</button><button>9</button><button class="operator" data-action="multiply">×</button>
+                    <button>4</button><button>5</button><button>6</button><button class="operator" data-action="subtract">−</button>
+                    <button>1</button><button>2</button><button>3</button><button class="action" data-action="add">+</button>
+                    <button class="clear" data-action="clear">C</button><button>0</button><button data-action="decimal">.</button><button class="operator" data-action="divide">÷</button>
+                </div>
+            </div>
+            <div class="powered-user-footer">Powered by <strong>thIAguinho Soluções Digitais</strong></div>
+        </footer>
+    </div>
+
+    <div id="report-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div style="margin-bottom: 15px;">
+                <label for="purchase-location" style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--cor-texto-secundario);">Local da Compra:</label>
+                <input type="text" id="purchase-location" list="purchase-location-options" placeholder="Ex: Supermercado Central" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--cor-borda); font-size: 1rem;"><datalist id="purchase-location-options"></datalist>
+            </div>
+            <div id="report-paper"></div>
+            <div class="modal-actions" style="justify-content: space-between;">
+                <div><button id="download-report-btn">Baixar</button><button id="print-report-btn">Imprimir</button></div>
+                <div><button id="close-modal-btn">Fechar</button><button id="finalize-purchase-btn" class="btn btn-success" style="padding: 8px 12px; font-size: 1rem; width: auto; height: auto;">Finalizar Compra</button></div>
+            </div>
+            <div id="finalize-state" class="finalize-state" aria-live="polite"></div>
+        </div>
+    </div>
+
+    <div id="report-view-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;">Relatório de Compra</h3>
+            <div id="report-view-meta" class="report-view-meta"></div>
+            <div id="report-view-content"></div>
+            <div id="report-view-audit" class="report-audit"></div>
+            <div class="modal-actions">
+                <button id="edit-view-report-btn" type="button">Editar relatório</button>
+                <button id="close-view-modal-btn" type="button">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="report-edit-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">Editar compra finalizada</h3>
+            <div class="modal-field"><label for="edit-report-location">Local da compra</label><input id="edit-report-location" type="text" list="purchase-location-options" maxlength="160" placeholder="Ex.: Supermercado Central"></div>
+            <div class="modal-field"><label for="edit-report-note">Observação</label><textarea id="edit-report-note" maxlength="500" placeholder="Opcional. Ex.: compra semanal, cupom conferido..."></textarea></div>
+            <div id="report-edit-items-wrap">
+                <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><strong>Itens e valores</strong><button id="add-report-item-btn" type="button">+ Item</button></div>
+                <div id="report-edit-items" class="report-edit-items"></div>
+                <div id="report-edit-total" class="report-edit-total">Total: R$ 0,00</div>
+            </div>
+            <div id="report-edit-legacy-note" class="report-legacy-note" hidden>Este é um relatório criado antes do histórico estruturado de itens. O local e a observação podem ser editados; os valores originais permanecem preservados.</div>
+            <div class="modal-actions" style="margin-top:14px">
+                <button id="cancel-report-edit-btn" type="button">Cancelar</button>
+                <button id="save-report-edit-btn" type="button" class="btn btn-success" style="padding:8px 12px;font-size:1rem;width:auto;height:auto">Salvar alterações</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receipt-import-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">Registrar compra pela nota</h3>
+            <p class="receipt-help">Fotografe o cupom fiscal ou escolha até 4 imagens da galeria. O leitor identifica mercado, data, itens, quantidades, preços e total; você confere antes de salvar.</p>
+            <div class="receipt-privacy">🔒 As imagens ficam somente neste aparelho durante a leitura. O Mercador IA grava no Firebase apenas os dados que você confirmar — não envia a foto da nota para o Realtime Database.</div>
+            <div class="receipt-source-actions">
+                <button id="receipt-camera-btn" type="button">📷 Tirar foto</button>
+                <button id="receipt-gallery-btn" type="button">🖼️ Galeria</button>
+                <input id="receipt-camera-input" type="file" accept="image/*" capture="environment" hidden>
+                <input id="receipt-gallery-input" type="file" accept="image/*" multiple hidden>
+            </div>
+            <div id="receipt-images" class="receipt-images" hidden></div>
+            <div id="receipt-progress" class="receipt-progress" hidden><span></span></div>
+            <div id="receipt-status" class="receipt-status">Selecione uma foto nítida da nota. Em cupons longos, você pode adicionar mais de uma foto.</div>
+
+            <div id="receipt-review" class="receipt-review" hidden>
+                <div id="receipt-kpis" class="receipt-kpis"></div>
+                <div class="receipt-review-grid">
+                    <div class="modal-field full"><label for="receipt-market">Mercado / estabelecimento</label><input id="receipt-market" type="text" maxlength="160" placeholder="Ex.: Super Muffato"></div>
+                    <div class="modal-field"><label for="receipt-date">Data e hora da compra</label><input id="receipt-date" type="datetime-local"></div>
+                    <div class="modal-field"><label for="receipt-cnpj">CNPJ detectado</label><input id="receipt-cnpj" type="text" maxlength="24" placeholder="Opcional"></div>
+                    <div class="modal-field"><label for="receipt-total">Total pago</label><input id="receipt-total" type="number" min="0" step="0.01" inputmode="decimal"></div>
+                    <div class="modal-field"><label for="receipt-note">Observação</label><input id="receipt-note" type="text" maxlength="500" placeholder="Opcional"></div>
+                </div>
+                <div class="receipt-items-head"><strong>Itens detectados</strong><button id="receipt-add-item" type="button">+ Item</button></div>
+                <div id="receipt-items" class="receipt-items"></div>
+                <div id="receipt-reconcile" class="receipt-reconcile"></div>
+            </div>
+
+            <div class="receipt-actions">
+                <button id="receipt-cancel" type="button" class="secondary">Fechar</button>
+                <button id="receipt-read" type="button" class="secondary" disabled>Ler nota</button>
+                <button id="receipt-save" type="button" class="primary" hidden>Salvar compra</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // Nenhuma configuração de API ou inicialização do Firebase aqui.
+    // Tudo é gerenciado pelo `firebase-config.js` carregado no <head>.
+    
+    let listRef = null;
+    let reportsRef = null;
+    let userId = null;
+
+    auth.onAuthStateChanged(async user => {
+        if (user) {
+            try {
+                const profile = await window.MercadorIA.ensureAuthenticatedProfile(user);
+                if (!profile || profile.status !== 'active') throw new Error('Sua conta está bloqueada.');
+                userId = user.uid;
+                listRef = database.ref(`shopping_lists/${userId}`);
+                reportsRef = database.ref(`purchase_reports/${userId}`);
+                document.querySelector('.app-container').classList.add('loaded');
+                interactions.initDataListeners();
+            } catch (error) {
+                document.body.innerHTML = `<div style="padding:20px;text-align:center"><h2>Acesso Negado</h2><p>${String(error.message || error)}</p><p><a href="./index.html">Voltar ao login</a></p></div>`;
+            }
+        } else {
+            window.location.replace('./index.html');
+        }
+    });
+
+    // --- O restante do seu código original, 100% preservado e com a formatação correta ---
+
+    const state = {
+        itens: [],
+        reports: [],
+        activeItemId: null,
+        calcDisplay: '0',
+        currentTab: (() => { const t=new URLSearchParams(location.search).get('tab'); return ['faltando','comprados','adiados','relatorios'].includes(t) ? t : 'faltando'; })(),
+        selectedReportId: null,
+        editingReportId: null,
+        reportsLoaded: false,
+        reportsLoading: false,
+        reportsLoadingMore: false,
+        reportsHasMore: false,
+        reportsLoadedAt: 0,
+        listLoaded: false,
+        dirtyLists: new Set(['faltando','comprados','adiados']),
+        tabScroll: { faltando:0, comprados:0, adiados:0, relatorios:0 },
+        syncTimer: null,
+        receiptImport: { files:[], urls:[], rawText:'', pages:[], parsed:null, ocrConfidence:0, reading:false },
+        finalizeInFlight: false,
+        firebaseConnected: null,
+        ui: { isCalculatorCollapsed: true, listView:{ query:'', offerFilter:'all', sort:'original' } },
+    };
+
+    const ui = {
+        appContainer: document.querySelector('.app-container'),
+        calculatorFooter: document.querySelector('.calculator-footer'),
+        toggleCalcBtn: document.getElementById('toggle-calc-btn'),
+        form: document.getElementById('form-adicionar-item'),
+        input: document.getElementById('input-novo-item'),
+        headerTotal: document.getElementById('header-total'),
+        calcDisplay: document.getElementById('calc-display'),
+        activeItemDisplay: document.getElementById('active-item-display'),
+        keypad: document.querySelector('.keypad'),
+        tabs: document.querySelector('.tabs'),
+        listTools: document.getElementById('list-tools'),
+        listSearch: document.getElementById('list-search'),
+        listSearchClear: document.getElementById('list-search-clear'),
+        listOfferFilter: document.getElementById('list-offer-filter'),
+        listSort: document.getElementById('list-sort'),
+        listViewSummary: document.getElementById('list-view-summary'),
+        btnFinalizar: document.getElementById('btn-finalizar'),
+        reportModal: document.getElementById('report-modal'),
+        reportPaper: document.getElementById('report-paper'),
+        purchaseLocationInput: document.getElementById('purchase-location'),
+        closeModalBtn: document.getElementById('close-modal-btn'),
+        printReportBtn: document.getElementById('print-report-btn'),
+        downloadReportBtn: document.getElementById('download-report-btn'),
+        finalizePurchaseBtn: document.getElementById('finalize-purchase-btn'),
+        finalizeState: document.getElementById('finalize-state'),
+        reportViewModal: document.getElementById('report-view-modal'),
+        reportViewContent: document.getElementById('report-view-content'),
+        reportViewMeta: document.getElementById('report-view-meta'),
+        reportViewAudit: document.getElementById('report-view-audit'),
+        closeViewModalBtn: document.getElementById('close-view-modal-btn'),
+        editViewReportBtn: document.getElementById('edit-view-report-btn'),
+        reportEditModal: document.getElementById('report-edit-modal'),
+        editReportLocation: document.getElementById('edit-report-location'),
+        editReportNote: document.getElementById('edit-report-note'),
+        reportEditItemsWrap: document.getElementById('report-edit-items-wrap'),
+        reportEditItems: document.getElementById('report-edit-items'),
+        reportEditTotal: document.getElementById('report-edit-total'),
+        reportEditLegacyNote: document.getElementById('report-edit-legacy-note'),
+        addReportItemBtn: document.getElementById('add-report-item-btn'),
+        cancelReportEditBtn: document.getElementById('cancel-report-edit-btn'),
+        saveReportEditBtn: document.getElementById('save-report-edit-btn'),
+
+        receiptImportModal: document.getElementById('receipt-import-modal'),
+        receiptCameraBtn: document.getElementById('receipt-camera-btn'),
+        receiptGalleryBtn: document.getElementById('receipt-gallery-btn'),
+        receiptCameraInput: document.getElementById('receipt-camera-input'),
+        receiptGalleryInput: document.getElementById('receipt-gallery-input'),
+        receiptImages: document.getElementById('receipt-images'),
+        receiptProgress: document.getElementById('receipt-progress'),
+        receiptProgressBar: document.querySelector('#receipt-progress > span'),
+        receiptStatus: document.getElementById('receipt-status'),
+        receiptReview: document.getElementById('receipt-review'),
+        receiptKpis: document.getElementById('receipt-kpis'),
+        receiptMarket: document.getElementById('receipt-market'),
+        receiptDate: document.getElementById('receipt-date'),
+        receiptCnpj: document.getElementById('receipt-cnpj'),
+        receiptTotal: document.getElementById('receipt-total'),
+        receiptNote: document.getElementById('receipt-note'),
+        receiptItems: document.getElementById('receipt-items'),
+        receiptAddItem: document.getElementById('receipt-add-item'),
+        receiptReconcile: document.getElementById('receipt-reconcile'),
+        receiptCancel: document.getElementById('receipt-cancel'),
+        receiptRead: document.getElementById('receipt-read'),
+        receiptSave: document.getElementById('receipt-save'),
+        smartSuggestions: document.getElementById('smart-suggestions'),
+        purchaseLocationOptions: document.getElementById('purchase-location-options'),
+    };
+
+    const emojiMap = {
+        'leite': '🥛', 'queijo': '🧀', 'manteiga': '🧈', 'ovo': '🥚', 'bacon': '🥓', 'pao': '🍞', 'pão': '🍞',
+        'baguete': '🥖', 'croissant': '🥐', 'pretzel': '🥨', 'bagel': '🥯', 'panqueca': '🥞', 'waffle': '🧇',
+        'arroz': '🍚', 'cereal': '🥣', 'feijao': '🫘', 'feijão': '🫘', 'macarrao': '🍝', 'macarrão': '🍝',
+        'massa': '🍝', 'ramen': '🍜', 'pao sirio': '🫓', 'pão sírio': '🫓', 'carne': '🥩', 'pernil': '🍖',
+        'frango': '🍗', 'peixe': '🐟', 'salsicha': '🌭', 'camarao': '🍤', 'camarão': '🍤', 'lula': '🦑',
+        'lagosta': '🦞', 'caranguejo': '🦀', 'ostra': '🦪', 'sushi': '🍣', 'maca': '🍎', 'maçã': '🍎',
+        'maca verde': '🍏', 'maçã verde': '🍏', 'pera': '🍐', 'pêra': '🍐', 'banana': '🍌', 'laranja': '🍊',
+        'limao': '🍋‍🟩', 'limão': '🍋‍🟩', 'uva': '🍇', 'morango': '🍓', 'melancia': '🍉', 'abacaxi': '🍍',
+        'manga': '🥭', 'pessego': '🍑', 'pêssego': '🍑', 'cereja': '🍒', 'kiwi': '🥝', 'melao': '🍈',
+        'melão': '🍈', 'coco': '🥥', 'mirtilo': '🫐', 'tomate': '🍅', 'cenoura': '🥕', 'batata': '🥔',
+        'batata doce': '🍠', 'cebola': '🧅', 'alho': '🧄', 'alface': '🥬', 'brocolis': '🥦', 'brócolis': '🥦',
+        'milho': '🌽', 'pepino': '🥒', 'berinjela': '🍆', 'abacate': '🥑', 'pimentao': '🫑', 'pimentão': '🫑',
+        'pimenta': '🌶️', 'cogumelo': '🍄', 'gengibre': '🫚', 'ervilha': '🫛', 'salada': '🥗', 'azeitona': '🫒',
+        'ervas': '🌿', 'hortela': '🍃', 'hortelã': '🍃', 'amendoim': '🥜', 'castanha': '🌰', 'sal': '🧂',
+        'oleo': '🫗', 'óleo': '🫗', 'mel': '🍯', 'enlatado': '🥫', 'conserva': '🫙', 'cafe': '☕️', 'café': '☕️',
+        'cha': '🍵', 'chá': '🍵', 'chimarrao': '🧉', 'chimarrão': '🧉', 'suco': '🧃', 'refrigerante': '🥤',
+        'agua': '💧', 'água': '💧', 'gelo': '🧊', 'cerveja': '🍺', 'vinho': '🍷', 'espumante': '🍾',
+        'whisky': '🥃', 'coquetel': '🍸', 'drink': '🍹', 'chocolate': '🍫', 'doce': '🍬', 'pirulito': '🍭',
+        'biscoito': '🍪', 'biscoito da sorte': '🥠', 'bolo': '🍰', 'bolo de aniversario': '🎂',
+        'bolo de aniversário': '🎂', 'cupcake': '🧁', 'torta': '🥧', 'sorvete': '🍦', 'sorvete de taca': '🍨',
+        'sorvete de taça': '🍨', 'raspadinha': '🍧', 'donut': '🍩', 'pudim': '🍮', 'pipoca': '🍿',
+        'pizza': '🍕', 'hamburguer': '🍔', 'hambúrguer': '🍔', 'batata frita': '🍟', 'sanduiche': '🥪',
+        'sanduíche': '🥪', 'taco': '🌮', 'burrito': '🌯', 'kebab': '🥙', 'falafel': '🧆', 'onigiri': '🍙',
+        'comida chinesa': '🥡', 'fondue': '🫕', 'sabao': '🧼', 'sabão': '🧼', 'detergente': '🧴', 'esponja': '🧽',
+        'limpeza': '🧹', 'vassoura': '🧹', 'balde': '🪣', 'cesto': '🧺', 'saco de lixo': '🗑️', 'shampoo': '🧴',
+        'papel': '🧻', 'papel higienico': '🧻', 'papel higiênico': '🧻', 'escova de dentes': '🪥',
+        'lamina de barbear': '🪒', 'lâmina de barbear': '🪒', 'curativo': '🩹', 'remedio': '💊',
+        'remédio': '💊', 'racao para pet': '🦴', 'ração para pet': '🦴', 'cigarro': '🚬', 'vela': '🕯️',
+        'lampada': '💡', 'lâmpada': '💡', 'pilha': '🔋', 'planta': '🪴', 'default': '🛒'
+    };
+    
+    const getEmojiForItem = (nome) => { const nomeLower = nome.toLowerCase(); for (const key in emojiMap) if (nomeLower.includes(key)) return emojiMap[key]; return emojiMap.default; };
+    
+    const normalizeItemName = (value) => {
+        if (window.MercadorIA?.normalizeText) return window.MercadorIA.normalizeText(value || '');
+        return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    };
+
+    const listSyncSignature = (items) => (items || []).map((item) => [String(item.id),item.status,Number(item.quantidade||0),Number(item.preco||0),String(item.nome||''),String(item.emoji||'')].join('~')).sort().join('|');
+
+    const perfStore = {
+        key: (name) => `mercadorIA:${name}:${userId || 'anon'}`,
+        read: (name, fallback = null) => {
+            try { const raw = localStorage.getItem(perfStore.key(name)); return raw ? JSON.parse(raw) : fallback; } catch (_) { return fallback; }
+        },
+        write: (name, value) => {
+            try { localStorage.setItem(perfStore.key(name), JSON.stringify(value)); } catch (_) {}
+        },
+        loadCachedList: () => {
+            const cached = perfStore.read('list-cache', null);
+            if (!cached || !Array.isArray(cached.items)) return false;
+            state.itens = cached.items;
+            state.listLoaded = false;
+            state.dirtyLists = new Set(['faltando','comprados','adiados']);
+            return true;
+        },
+        saveList: () => perfStore.write('list-cache', { savedAt:Date.now(), items:state.itens }),
+        loadMemory: () => perfStore.read('shopping-memory', { products:{}, locations:[] }),
+        saveMemory: (memory) => perfStore.write('shopping-memory', memory),
+        rememberPurchase: (items, location) => {
+            const memory = perfStore.loadMemory();
+            memory.products = memory.products || {};
+            for (const item of items || []) {
+                const key = normalizeItemName(item.nome || item.name || ''); if (!key) continue;
+                const current = memory.products[key] || { name:item.nome || item.name, count:0, lastAt:0 };
+                current.name = item.nome || item.name || current.name;
+                current.count = Number(current.count || 0) + 1;
+                current.lastAt = Date.now();
+                memory.products[key] = current;
+            }
+            const cleanLocation = String(location || '').trim();
+            if (cleanLocation && cleanLocation !== 'Não informado') {
+                memory.locations = [cleanLocation, ...(memory.locations || []).filter((x) => x !== cleanLocation)].slice(0,20);
+            }
+            perfStore.saveMemory(memory);
+        },
+        seedMemoryFromReports: (reports) => {
+            const memory = perfStore.loadMemory();
+            const products = {};
+            const locations = [];
+            [...(reports || [])].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,50).forEach((report) => {
+                const loc = String(report.location || '').trim(); if (loc && loc !== 'Não informado' && !locations.includes(loc)) locations.push(loc);
+                reportItemsArray(report).forEach((item) => {
+                    const key = normalizeItemName(item.nome); if (!key) return;
+                    const current = products[key] || { name:item.nome, count:0, lastAt:0 };
+                    current.count += 1; current.lastAt = Math.max(current.lastAt, new Date(report.createdAt || 0).getTime() || 0); products[key] = current;
+                });
+            });
+            memory.products = products; memory.locations = locations.slice(0,20); perfStore.saveMemory(memory);
+        }
+    };
+
+    const reportItemsArray = (report) => {
+        if (!report || !report.items) return [];
+        const raw = Array.isArray(report.items) ? report.items : Object.values(report.items || {});
+        return raw.map((item) => ({
+            nome: String(item?.nome ?? item?.name ?? '').trim(),
+            quantidade: Number(item?.quantidade ?? item?.quantity ?? 1),
+            preco: Number(item?.preco ?? item?.price ?? 0)
+        })).filter((item) => item.nome && Number.isFinite(item.quantidade) && item.quantidade > 0 && Number.isFinite(item.preco) && item.preco >= 0);
+    };
+
+    const buildReportText = ({ location, items, total, createdAt, note }) => {
+        const when = new Date(createdAt || Date.now()).toLocaleString('pt-BR');
+        let text = `*** RELATÓRIO DE COMPRA ***\n\nLOCAL: ${location || 'Não informado'}\nDATA: ${when}\n------------------------------------------\nITEM               QTD      PREÇO     TOTAL\n------------------------------------------\n`;
+        (items || []).forEach((i) => {
+            const name = String(i.nome || '').substring(0, 18).padEnd(18);
+            const qty = String(Number(i.quantidade || 1)).padStart(5);
+            const price = Number(i.preco || 0).toFixed(2).padStart(9);
+            const subtotal = (Number(i.quantidade || 1) * Number(i.preco || 0)).toFixed(2).padStart(9);
+            text += `${name} ${qty} x ${price} = ${subtotal}\n`;
+        });
+        text += `------------------------------------------\nTOTAL A PAGAR: R$ ${Number(total || 0).toFixed(2)}\n`;
+        if (note) text += `\nOBSERVAÇÃO: ${note}\n`;
+        text += `\nPowered by thIAguinho Soluções Digitais`;
+        return text;
+    };
+
+    const legacyReportTextWithEdits = (report, location, note) => {
+        let text = String(report?.content || '').trim();
+        text = text.replace(/\*{5}\s*thIAguinho Soluções(?: Digitais)?\s*\*{5}/gi, 'Powered by thIAguinho Soluções Digitais');
+        text = text.replace(/\n?Powered by thIAguinho Soluções Digitais\s*$/i, '');
+        if (/^LOCAL:.*$/m.test(text)) text = text.replace(/^LOCAL:.*$/m, `LOCAL: ${location || 'Não informado'}`);
+        else {
+            const titleMatch = text.match(/^(\*{3}[^\n]*\*{3})/m);
+            text = titleMatch ? text.replace(titleMatch[0], `${titleMatch[0]}\n\nLOCAL: ${location || 'Não informado'}`) : `LOCAL: ${location || 'Não informado'}\n${text}`;
+        }
+        text = text.replace(/\nOBSERVAÇÃO:.*?(?=\n(?:Powered by|\*{3}|TOTAL)|$)/gis, '');
+        if (note) text += `\n\nOBSERVAÇÃO: ${note}`;
+        text += `\n\nPowered by thIAguinho Soluções Digitais`;
+        return text;
+    };
+
+
+    // --- Mercador IA V2.9: leitura de cupom fiscal somente sob demanda ---
+    const RECEIPT_OCR = Object.freeze({
+        scriptUrl:'https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js',
+        engine:'tesseract.js', version:'5.0.5', maxImages:4, maxFileBytes:15*1024*1024
+    });
+
+    const parsePtBrDateTime = (value) => {
+        const text=String(value || '').trim();
+        let match=text.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})(?:[^\d]{1,5}(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+        if(!match)return null;
+        let year=Number(match[3]); if(year<100)year+=2000;
+        const dt=new Date(year,Number(match[2])-1,Number(match[1]),Number(match[4]||12),Number(match[5]||0),Number(match[6]||0));
+        return Number.isNaN(dt.getTime())?null:dt;
+    };
+
+    const receiptHash = (value) => {
+        let hash=2166136261;
+        for(const ch of String(value || '')){hash^=ch.charCodeAt(0);hash=Math.imul(hash,16777619);}
+        return (hash>>>0).toString(36);
+    };
+
+    const receiptMoney = (value) => {
+        if(typeof value==='number')return Number.isFinite(value)?value:0;
+        let text=String(value ?? '').trim().replace(/R\$/gi,'').replace(/[^\d,.-]/g,'');
+        if(!text)return 0;
+        const negative=text.startsWith('-'); text=text.replace(/-/g,'');
+        if(text.includes(',')){text=text.replace(/\./g,'').replace(',','.');}
+        else if((text.match(/\./g)||[]).length>1){text=text.replace(/\./g,'');}
+        const n=Number(text); return Number.isFinite(n)?(negative?-n:n):0;
+    };
+
+    const receiptDateTimeLocal = (iso) => {
+        const d=new Date(iso || Date.now()); if(Number.isNaN(d.getTime()))return '';
+        const p=(n)=>String(n).padStart(2,'0');
+        return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    };
+
+    const receiptStatus = (message, type='') => {
+        if(!ui.receiptStatus)return;
+        ui.receiptStatus.className=`receipt-status${type?` ${type}`:''}`;
+        ui.receiptStatus.textContent=message;
+    };
+
+    const setReceiptProgress = (value, show=true) => {
+        if(!ui.receiptProgress || !ui.receiptProgressBar)return;
+        ui.receiptProgress.hidden=!show;
+        ui.receiptProgressBar.style.width=`${Math.max(0,Math.min(100,Number(value)||0))}%`;
+    };
+
+    const resetReceiptImport = () => {
+        (state.receiptImport.urls || []).forEach((url)=>{try{URL.revokeObjectURL(url);}catch(_){}});
+        state.receiptImport={files:[],urls:[],rawText:'',pages:[],parsed:null,ocrConfidence:0,reading:false};
+        ui.receiptCameraInput.value=''; ui.receiptGalleryInput.value=''; ui.receiptImages.replaceChildren(); ui.receiptImages.hidden=true;
+        ui.receiptReview.hidden=true; ui.receiptItems.replaceChildren(); ui.receiptSave.hidden=true; ui.receiptRead.disabled=true;
+        ui.receiptMarket.value=''; ui.receiptDate.value=''; ui.receiptCnpj.value=''; ui.receiptTotal.value=''; ui.receiptNote.value='';
+        setReceiptProgress(0,false); receiptStatus('Selecione uma foto nítida da nota. Em cupons longos, você pode adicionar mais de uma foto.');
+    };
+
+    const openReceiptImport = () => { resetReceiptImport(); ui.receiptImportModal.classList.add('visible'); };
+
+    const renderReceiptImages = () => {
+        ui.receiptImages.replaceChildren();
+        if(!state.receiptImport.files.length){ui.receiptImages.hidden=true;ui.receiptRead.disabled=true;return;}
+        ui.receiptImages.hidden=false;
+        state.receiptImport.urls.forEach((url,index)=>{
+            const wrap=document.createElement('div');wrap.className='receipt-thumb';
+            wrap.innerHTML=`<img src="${url}" alt="Foto ${index+1} da nota"><button type="button" data-remove-receipt-image="${index}" aria-label="Remover foto">✕</button>`;
+            ui.receiptImages.appendChild(wrap);
+        });
+        ui.receiptRead.disabled=false;
+        receiptStatus(`${state.receiptImport.files.length} foto${state.receiptImport.files.length===1?'':'s'} selecionada${state.receiptImport.files.length===1?'':'s'}. Toque em “Ler nota”.`);
+    };
+
+    const addReceiptFiles = (files) => {
+        const incoming=[...(files || [])].filter((f)=>String(f.type||'').startsWith('image/'));
+        if(!incoming.length){receiptStatus('Selecione uma imagem válida da nota.','error');return;}
+        for(const file of incoming){
+            if(state.receiptImport.files.length>=RECEIPT_OCR.maxImages)break;
+            if(file.size>RECEIPT_OCR.maxFileBytes){receiptStatus(`A imagem “${file.name || 'selecionada'}” é muito grande. Limite: 15 MB por foto.`,'error');continue;}
+            state.receiptImport.files.push(file); state.receiptImport.urls.push(URL.createObjectURL(file));
+        }
+        renderReceiptImages();
+    };
+
+    let tesseractLoadPromise=null;
+    const loadReceiptOcrEngine = () => {
+        if(window.Tesseract?.createWorker)return Promise.resolve(window.Tesseract);
+        if(tesseractLoadPromise)return tesseractLoadPromise;
+        tesseractLoadPromise=new Promise((resolve,reject)=>{
+            const script=document.createElement('script'); script.src=RECEIPT_OCR.scriptUrl; script.async=true; script.crossOrigin='anonymous';
+            script.onload=()=>window.Tesseract?.createWorker?resolve(window.Tesseract):reject(new Error('O leitor OCR não inicializou.'));
+            script.onerror=()=>reject(new Error('Não foi possível carregar o leitor da nota. Verifique sua conexão.'));
+            document.head.appendChild(script);
+        });
+        return tesseractLoadPromise;
+    };
+
+    const preprocessReceiptImage = (file) => new Promise((resolve,reject)=>{
+        const img=new Image(); const url=URL.createObjectURL(file);
+        img.onload=()=>{
+            try{
+                const maxW=1800,maxH=3600; const scale=Math.min(1,maxW/img.naturalWidth,maxH/img.naturalHeight);
+                const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
+                const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{willReadFrequently:true});
+                ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+                const image=ctx.getImageData(0,0,w,h),data=image.data,hist=new Uint32Array(256);
+                for(let i=0;i<data.length;i+=4){const g=Math.max(0,Math.min(255,Math.round(.299*data[i]+.587*data[i+1]+.114*data[i+2])));hist[g]++;}
+                const pixels=w*h,lowTarget=pixels*.025,highTarget=pixels*.975;let acc=0,low=0,high=255;
+                for(let i=0;i<256;i++){acc+=hist[i];if(acc>=lowTarget){low=i;break;}} acc=0;
+                for(let i=0;i<256;i++){acc+=hist[i];if(acc>=highTarget){high=i;break;}} if(high-low<45){low=Math.max(0,low-25);high=Math.min(255,high+25);}
+                const range=Math.max(1,high-low);
+                for(let i=0;i<data.length;i+=4){let g=Math.round(.299*data[i]+.587*data[i+1]+.114*data[i+2]);g=Math.max(0,Math.min(255,Math.round((g-low)*255/range)));data[i]=data[i+1]=data[i+2]=g;data[i+3]=255;}
+                ctx.putImageData(image,0,0); resolve(canvas.toDataURL('image/jpeg',.94));
+            }catch(error){reject(error);}finally{URL.revokeObjectURL(url);}
+        };
+        img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Não consegui abrir uma das imagens. Use JPG, PNG ou uma foto feita pela câmera.'));};
+        img.src=url;
+    });
+
+    const normalizeReceiptLine = (line) => String(line || '').replace(/[\u00A0\t]+/g,' ').replace(/\s{2,}/g,' ').trim();
+    const receiptMoneyTokenRegex = /(?:R\$\s*)?-?\d{1,5}(?:\.\d{3})*(?:,\d{2})|(?:R\$\s*)?-?\d{1,5}\.\d{2}/gi;
+    const receiptNoise = (line) => {
+        const x=normalizeItemName(line);
+        if(!x)return true;
+        return /(?:documento auxiliar|nota fiscal|nfce|nfc e|sat|cupom fiscal|consumidor|cnpj|cpf|chave de acesso|protocolo|autorizacao|tribut|imposto|operador|caixa|forma de pagamento|pagamento|cartao|credito|debito|pix|dinheiro|troco|valor recebido|subtotal|total a pagar|valor total|total r\$|qtd total|quantidade total|itens vendidos|economia|desconto total|acrescimo|volte sempre|obrigado|site|www\.|telefone|fone|cep\b)/i.test(x);
+    };
+
+    const cleanReceiptProductName = (value) => {
+        let s=normalizeReceiptLine(value)
+            .replace(/^\s*\d{1,4}\s*[-.)]?\s*/,'')
+            .replace(/\b\d{8,14}\b/g,' ')
+            .replace(/\b(?:COD(?:IGO)?|ITEM)\s*[:.-]?\s*\d+\b/gi,' ')
+            .replace(/\s{2,}/g,' ').replace(/^[\-–—.:;]+|[\-–—.:;]+$/g,'').trim();
+        if(s.length>120)s=s.slice(0,120).trim();
+        return s;
+    };
+
+    const isReceiptProductCandidate = (line) => {
+        const s=cleanReceiptProductName(line);
+        if(s.length<3 || receiptNoise(s))return false;
+        const letters=(s.match(/[A-Za-zÀ-ÿ]/g)||[]).length;
+        return letters>=3 && letters>=Math.max(3,Math.floor(s.length*.22));
+    };
+
+    const extractReceiptDate = (text) => {
+        const patterns=[
+            /(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})[^\n\d]{0,12}(\d{1,2}:\d{2}(?::\d{2})?)/,
+            /(?:data|emissao|emissão)\s*[:.-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})(?:[^\n\d]{0,12}(\d{1,2}:\d{2}(?::\d{2})?))?/i,
+            /(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/
+        ];
+        for(const rx of patterns){const m=String(text||'').match(rx);if(m){const d=parsePtBrDateTime(`${m[1]} ${m[2]||'12:00'}`);if(d)return d.toISOString();}}
+        return null;
+    };
+
+    const extractReceiptMarket = (lines) => {
+        const candidates=[];
+        lines.slice(0,18).forEach((line,index)=>{
+            const s=cleanReceiptProductName(line);receiptMoneyTokenRegex.lastIndex=0;const hasMoney=receiptMoneyTokenRegex.test(s);receiptMoneyTokenRegex.lastIndex=0;if(!isReceiptProductCandidate(s)||hasMoney)return;
+            const n=normalizeItemName(s); if(/^(rua|r |avenida|av |rodovia|bairro|cidade|loja n|unidade|ie |im |inscricao|endereco)/i.test(n))return;
+            let score=50-index*1.5; const words=s.split(/\s+/).length;score+=Math.min(18,words*3); if(s===s.toUpperCase())score+=5; if(/mercad|supermerc|atacad|hiper|assai|muffato|carrefour|mix|loja/i.test(n))score+=22;
+            candidates.push({s,score});
+        });
+        candidates.sort((a,b)=>b.score-a.score);return candidates[0]?.s || 'Não informado';
+    };
+
+    const extractReceiptTotal = (lines) => {
+        let best={value:0,score:-1,line:''};
+        lines.forEach((line,index)=>{
+            const n=normalizeItemName(line); receiptMoneyTokenRegex.lastIndex=0;const tokens=[...String(line).matchAll(receiptMoneyTokenRegex)].map((m)=>receiptMoney(m[0]));receiptMoneyTokenRegex.lastIndex=0;
+            if(!tokens.length)return;
+            let score=-1;
+            if(/total a pagar|valor a pagar|total pagar/.test(n))score=120;
+            else if(/valor total|total r\$|\btotal\b/.test(n) && !/subtotal|tribut|desconto/.test(n))score=100;
+            else if(index>lines.length*.85 && /a pagar|pagar/.test(n))score=90;
+            if(score>=0){score+=index/Math.max(1,lines.length)*10; const value=tokens[tokens.length-1]; if(value>=0 && score>best.score)best={value,score,line};}
+        });
+        return best.value;
+    };
+
+    const parseReceiptItems = (lines) => {
+        const items=[]; let pendingName='';
+        const pushItem=(name,qty,unit,total,confidence,sourceLine)=>{
+            name=cleanReceiptProductName(name);qty=Number(qty);unit=Number(unit);total=Number(total||qty*unit);
+            if(!isReceiptProductCandidate(name)||!(qty>0)||!(unit>=0)||!Number.isFinite(total))return;
+            const expected=qty*unit; if(total<=0)total=expected;
+            if(Math.abs(expected-total)>Math.max(.08,Math.abs(total)*.025))confidence=Math.max(.45,confidence-.18);
+            items.push({nome:name,quantidade:qty,preco:unit,total,confidence:Math.max(.35,Math.min(1,confidence)),sourceLine:normalizeReceiptLine(sourceLine).slice(0,180)});
+            pendingName='';
+        };
+        for(let i=0;i<lines.length;i++){
+            const line=normalizeReceiptLine(lines[i]);if(!line)continue;
+            let m=line.match(/(?:QTD|QTDE|QUANTIDADE)\s*[:.]?\s*(\d+(?:[.,]\d{1,3})?).*?(?:VL\.?\s*UNIT|VLR\.?\s*UNIT|VALOR\s*UNIT)\s*[:.]?\s*(?:R\$)?\s*([\d.,]+).*?(?:VL\.?\s*TOTAL|VLR\.?\s*TOTAL|VALOR\s*TOTAL)\s*[:.]?\s*(?:R\$)?\s*([\d.,]+)/i);
+            if(m && pendingName){pushItem(pendingName,receiptMoney(m[1]),receiptMoney(m[2]),receiptMoney(m[3]),.96,line);continue;}
+            m=line.match(/(\d+(?:[.,]\d{1,3})?)\s*(?:UN|UND|UNID|KG|G|L|LT|ML|PC|PCT|CX|FD|BDJ|PT)?\s*[xX×]\s*(?:R\$)?\s*([\d.,]+)(?:\s+(?:R\$)?\s*([\d.,]+))?/i);
+            if(m){
+                const prefix=line.slice(0,m.index).trim(); const name=isReceiptProductCandidate(prefix)?prefix:pendingName;
+                if(name){const qty=receiptMoney(m[1]),unit=receiptMoney(m[2]),total=m[3]?receiptMoney(m[3]):qty*unit;pushItem(name,qty,unit,total,.94,line);continue;}
+            }
+            if(!receiptNoise(line)){
+                receiptMoneyTokenRegex.lastIndex=0;const moneyMatches=[...line.matchAll(receiptMoneyTokenRegex)];receiptMoneyTokenRegex.lastIndex=0;
+                if(moneyMatches.length){
+                    const last=moneyMatches[moneyMatches.length-1]; const price=receiptMoney(last[0]); const prefix=line.slice(0,last.index).trim();
+                    const name=isReceiptProductCandidate(prefix)?prefix:pendingName;
+                    if(name && price>=0){pushItem(name,1,price,price,prefix? .76:.70,line);continue;}
+                }
+                if(isReceiptProductCandidate(line))pendingName=line;
+            }
+        }
+        const dedup=[];
+        for(const item of items){const prev=dedup[dedup.length-1];const sig=(x)=>`${normalizeItemName(x.nome)}|${Number(x.quantidade).toFixed(3)}|${Number(x.preco).toFixed(2)}`;if(prev&&sig(prev)===sig(item))continue;dedup.push(item);}
+        return dedup;
+    };
+
+    const parseReceiptText = (pages, ocrConfidence=0) => {
+        const raw=pages.join('\n\n'); const lines=raw.split(/\r?\n/).map(normalizeReceiptLine).filter(Boolean);
+        const cnpjMatch=raw.match(/CNPJ\s*[:.-]?\s*(\d{2}[.\s]?\d{3}[.\s]?\d{3}[\/\s]?\d{4}[-\s]?\d{2})/i) || raw.match(/\b(\d{2}[.]\d{3}[.]\d{3}[\/]\d{4}[-]\d{2})\b/);
+        const market=extractReceiptMarket(lines),dateDetected=extractReceiptDate(raw),createdAt=dateDetected||new Date().toISOString(),declaredTotal=extractReceiptTotal(lines),items=parseReceiptItems(lines);
+        const computed=items.reduce((s,i)=>s+Number(i.total||i.quantidade*i.preco),0); const total=declaredTotal>0?declaredTotal:computed;
+        const diff=Math.abs(total-computed); const warnings=[];
+        if(market==='Não informado')warnings.push('mercado não identificado'); if(!dateDetected)warnings.push('data não identificada'); if(!items.length)warnings.push('nenhum item identificado'); if(!(total>0))warnings.push('total não identificado');
+        if(items.length && total>0 && diff>Math.max(.15,total*.02))warnings.push(`itens somam R$ ${computed.toFixed(2)} e a nota indica R$ ${total.toFixed(2)}`);
+        const itemQuality=items.length?items.reduce((s,i)=>s+i.confidence,0)/items.length:0;
+        let confidence=(market!=='Não informado'?14:0)+(total>0?18:0)+(dateDetected?12:0)+Math.min(42,itemQuality*42)+(ocrConfidence/100)*14;confidence=Math.max(0,Math.min(100,Math.round(confidence)));
+        return {market,createdAt,cnpj:cnpjMatch?.[1]?.replace(/\s/g,'')||'',total,declaredTotal,computedTotal:computed,items,confidence,warnings,rawText:raw};
+    };
+
+    const appendReceiptItemRow = (item={nome:'',quantidade:1,preco:0,confidence:1}) => {
+        const row=document.createElement('div'); const conf=Number(item.confidence ?? 1); row.className=`receipt-item-row ${conf<.68?'low':conf<.86?'medium':''}`;
+        const safe=window.MercadorIA?.escapeHtml?window.MercadorIA.escapeHtml(item.nome||''):String(item.nome||'').replace(/"/g,'&quot;');
+        row.innerHTML=`<input data-receipt-name aria-label="Produto" value="${safe}" placeholder="Produto"><input data-receipt-qty aria-label="Quantidade" type="number" min="0.001" step="0.001" value="${Number(item.quantidade||1)}"><input data-receipt-price aria-label="Preço unitário" type="number" min="0" step="0.01" value="${Number(item.preco||0).toFixed(2)}"><button type="button" class="receipt-item-remove" data-remove-receipt-item aria-label="Remover item">✕</button><div class="receipt-item-confidence">Leitura: <strong>${Math.round(conf*100)}%</strong>${conf<.68?' · confira este item':''}</div>`;
+        ui.receiptItems.appendChild(row);
+    };
+
+    const collectReceiptItems = () => [...ui.receiptItems.querySelectorAll('.receipt-item-row')].map((row)=>({
+        nome:String(row.querySelector('[data-receipt-name]')?.value||'').trim(),quantidade:Number(row.querySelector('[data-receipt-qty]')?.value||0),preco:Number(row.querySelector('[data-receipt-price]')?.value||0)
+    })).filter((i)=>i.nome&&i.quantidade>0&&i.preco>=0).map((i)=>({...i,total:i.quantidade*i.preco}));
+
+    const updateReceiptReconcile = () => {
+        if(ui.receiptReview.hidden)return;
+        const items=collectReceiptItems(),computed=items.reduce((s,i)=>s+i.total,0),declared=Number(ui.receiptTotal.value||0),reference=declared>0?declared:computed,diff=Math.abs(reference-computed);
+        const ok=diff<=Math.max(.10,reference*.01);ui.receiptReconcile.className=`receipt-reconcile ${ok?'ok':'warning'}`;
+        ui.receiptReconcile.textContent=ok?`✓ Conferência: ${items.length} item(ns) somam R$ ${computed.toFixed(2)}.`:`⚠ Itens somam R$ ${computed.toFixed(2)}; total informado R$ ${reference.toFixed(2)}. Isso pode ser desconto/acréscimo da nota ou leitura a revisar.`;
+    };
+
+    const renderReceiptReview = (parsed) => {
+        ui.receiptMarket.value=parsed.market==='Não informado'?'':parsed.market; ui.receiptDate.value=receiptDateTimeLocal(parsed.createdAt); ui.receiptCnpj.value=parsed.cnpj||''; ui.receiptTotal.value=Number(parsed.total||0).toFixed(2); ui.receiptNote.value='';
+        ui.receiptItems.replaceChildren(); (parsed.items||[]).forEach(appendReceiptItemRow); if(!parsed.items?.length)appendReceiptItemRow({confidence:.4});
+        const low=(parsed.items||[]).filter((i)=>i.confidence<.68).length;
+        ui.receiptKpis.innerHTML=`<div class="receipt-kpi"><strong>${parsed.items.length}</strong>itens</div><div class="receipt-kpi"><strong>${parsed.confidence}%</strong>confiança</div><div class="receipt-kpi"><strong>${low}</strong>revisar</div>`;
+        ui.receiptReview.hidden=false;ui.receiptSave.hidden=false;updateReceiptReconcile();
+        receiptStatus(parsed.warnings.length?`Leitura concluída. Confira: ${parsed.warnings.join(' · ')}.`:'Leitura concluída. Confira os dados e salve a compra.',parsed.warnings.length?'warning':'success');
+    };
+
+    const readReceiptPhotos = async () => {
+        if(!state.receiptImport.files.length){receiptStatus('Adicione pelo menos uma foto da nota.','error');return;}
+        if(state.receiptImport.reading)return; state.receiptImport.reading=true; ui.receiptRead.disabled=true;ui.receiptSave.hidden=true;ui.receiptReview.hidden=true;setReceiptProgress(2,true);receiptStatus('Preparando leitor de cupom…');
+        let worker=null;
+        try{
+            const Tesseract=await loadReceiptOcrEngine(); let pageIndex=0,currentProgress=0;
+            worker=await Tesseract.createWorker('por',1,{logger:(m)=>{if(m.status==='recognizing text'){currentProgress=Number(m.progress||0);const overall=((pageIndex+currentProgress)/state.receiptImport.files.length)*100;setReceiptProgress(Math.max(8,overall));receiptStatus(`Lendo foto ${Math.min(pageIndex+1,state.receiptImport.files.length)} de ${state.receiptImport.files.length}… ${Math.round(currentProgress*100)}%`);}}});
+            await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
+            const pages=[];let confidenceSum=0;
+            for(pageIndex=0;pageIndex<state.receiptImport.files.length;pageIndex++){
+                receiptStatus(`Preparando foto ${pageIndex+1} de ${state.receiptImport.files.length}…`); const image=await preprocessReceiptImage(state.receiptImport.files[pageIndex]);
+                const result=await worker.recognize(image); pages.push(String(result?.data?.text||''));confidenceSum+=Number(result?.data?.confidence||0);setReceiptProgress(((pageIndex+1)/state.receiptImport.files.length)*100);
+            }
+            state.receiptImport.pages=pages; state.receiptImport.rawText=pages.join('\n\n'); state.receiptImport.ocrConfidence=confidenceSum/Math.max(1,pages.length);
+            const parsed=parseReceiptText(pages,state.receiptImport.ocrConfidence);state.receiptImport.parsed=parsed;renderReceiptReview(parsed);setReceiptProgress(100,true);
+        }catch(error){console.error('Falha ao ler nota:',error);receiptStatus(error.message||'Não foi possível ler essa nota. Tente outra foto com boa luz e o papel reto.','error');setReceiptProgress(0,false);}
+        finally{if(worker){try{await worker.terminate();}catch(_){}}state.receiptImport.reading=false;ui.receiptRead.disabled=!state.receiptImport.files.length;}
+    };
+
+    const saveReceiptPurchase = async () => {
+        if(!state.receiptImport.parsed || !reportsRef)return;
+        const items=collectReceiptItems(); const location=ui.receiptMarket.value.trim().slice(0,160)||'Não informado'; const cnpj=ui.receiptCnpj.value.trim().slice(0,24); const note=ui.receiptNote.value.trim().slice(0,500);
+        const createdAtValue=ui.receiptDate.value; const d=createdAtValue?new Date(createdAtValue):new Date(); const createdAt=Number.isNaN(d.getTime())?new Date().toISOString():d.toISOString();
+        const computed=items.reduce((s,i)=>s+i.total,0); const declared=Number(ui.receiptTotal.value||0); const total=declared>0?declared:computed;
+        if(!items.length && !(total>0)){receiptStatus('Inclua pelo menos um item ou informe o total da compra.','error');return;}
+        const identityBase=[cnpj,createdAt.slice(0,16),total.toFixed(2),...items.map((i)=>`${normalizeItemName(i.nome)}:${i.quantidade.toFixed(3)}:${i.preco.toFixed(2)}`)].join('|');
+        const identityHash=receiptHash(identityBase); const reportKey=`receipt_${identityHash}`; ui.receiptSave.disabled=true;ui.receiptRead.disabled=true;receiptStatus('Salvando compra…');
+        try{
+            const existing=await reportsRef.child(reportKey).once('value');
+            if(existing.exists()){receiptStatus('Essa nota já foi registrada. Nenhuma compra duplicada foi criada.','warning');return;}
+            const importConfidence=Number(state.receiptImport.parsed.confidence||0); const importedAt=new Date().toISOString();
+            const reportItems=items.map((i,index)=>({...i,ocrConfidence:Number(state.receiptImport.parsed.items?.[index]?.confidence||0)}));
+            const reportData={
+                content:buildReportText({location,items:reportItems,total,createdAt,note}), location,total,createdAt,purchaseAt:createdAt,items:reportItems,note,editCount:0,createdBy:userId,formatVersion:3,
+                sourceType:'receipt_photo_ocr',importMethod:'camera_or_gallery',importedAt,receiptIdentityHash:identityHash,
+                receipt:{cnpj:cnpj||'',imageCount:state.receiptImport.files.length,ocrEngine:RECEIPT_OCR.engine,ocrVersion:RECEIPT_OCR.version,ocrConfidence:importConfidence,declaredTotal:Number(declared||0),computedItemsTotal:Number(computed||0),difference:Number((total-computed).toFixed(2)),rawTextHash:receiptHash(state.receiptImport.rawText)}
+            };
+            await reportsRef.child(reportKey).set(reportData); perfStore.rememberPurchase(reportItems,location);
+            if(state.reportsLoaded){const idx=state.reports.findIndex((r)=>r.id===reportKey);const row={...reportData,id:reportKey};if(idx>=0)state.reports[idx]=row;else state.reports.push(row);state.reportsLoadedAt=Date.now();}
+            const meta=perfStore.read('report-meta',{recentCount:0,limited:false});perfStore.write('report-meta',{recentCount:Math.min(50,Number(meta.recentCount||0)+1),limited:Boolean(meta.limited||Number(meta.recentCount||0)>=49),savedAt:Date.now()});
+            if(state.currentTab==='relatorios')render.reports(); render.tabs(); updatePurchaseLocationOptions(); receiptStatus('Compra registrada com sucesso.','success');
+            window.MercadorIA?.toast?.('Compra registrada pela nota.','success',5000); setTimeout(()=>{ui.receiptImportModal.classList.remove('visible');resetReceiptImport();},450);
+        }catch(error){console.error('Falha ao salvar compra da nota:',error);receiptStatus('Não foi possível salvar agora. Sua revisão continua na tela; confira a conexão e tente novamente.','error');}
+        finally{ui.receiptSave.disabled=false;ui.receiptRead.disabled=!state.receiptImport.files.length;}
+    };
+
+    const previewReportTextWithLocation = () => {
+        const location = ui.purchaseLocationInput.value.trim() || 'Não informado';
+        let text = String(ui.reportPaper.textContent || '');
+        if (/^LOCAL:.*$/m.test(text)) return text.replace(/^LOCAL:.*$/m, `LOCAL: ${location}`);
+        const title = text.match(/^(\*{3}[^\n]*\*{3})/m);
+        return title ? text.replace(title[0], `${title[0]}\n\nLOCAL: ${location}`) : `LOCAL: ${location}\n${text}`;
+    };
+
+    const reportHistoryEntries = (report) => Object.values(report?.editHistory || {}).sort((a,b) => new Date(b.editedAt || 0) - new Date(a.editedAt || 0));
+
+    const updatePurchaseLocationOptions = () => {
+        if (!ui.purchaseLocationOptions) return;
+        const memory = perfStore.loadMemory();
+        const fromReports = state.reportsLoaded ? state.reports.map((r) => String(r.location || '').trim()) : [];
+        const names = [...new Set([...(memory.locations || []), ...fromReports].filter((x) => x && x !== 'Não informado'))].slice(0,30);
+        ui.purchaseLocationOptions.innerHTML = names.map((name) => `<option value="${window.MercadorIA?.escapeHtml ? window.MercadorIA.escapeHtml(name) : name.replace(/"/g,'&quot;')}"></option>`).join('');
+    };
+
+    const frequentProductSuggestions = (query = '') => {
+        const current = new Set(state.itens.map((item) => normalizeItemName(item.nome)));
+        const memory = perfStore.loadMemory();
+        const q = normalizeItemName(query);
+        return Object.entries(memory.products || {}).
+            filter(([key]) => !current.has(key)).
+            map(([,value]) => ({ name:value.name, count:Number(value.count||0), recent:Number(value.lastAt||0) })).
+            filter((x) => x.name && (!q || normalizeItemName(x.name).includes(q))).
+            sort((a,b)=>(b.count-a.count)||(b.recent-a.recent)||a.name.localeCompare(b.name)).
+            slice(0,8);
+    };
+
+    const renderSmartSuggestions = () => {
+        if (!ui.smartSuggestions) return;
+        const suggestions = frequentProductSuggestions(ui.input.value);
+        if (!suggestions.length) { ui.smartSuggestions.hidden = true; ui.smartSuggestions.innerHTML=''; return; }
+        ui.smartSuggestions.hidden = false;
+        ui.smartSuggestions.innerHTML = suggestions.map((x) => `<button type="button" class="smart-suggestion" data-smart-add="${encodeURIComponent(x.name)}" title="Usado em ${x.count} compra${x.count===1?'':'s'} anterior${x.count===1?'':'es'}">${getEmojiForItem(x.name)} ${window.MercadorIA?.escapeHtml ? window.MercadorIA.escapeHtml(x.name) : x.name}</button>`).join('');
+    };
+
+    const updateReportEditTotal = () => {
+        if (!ui.reportEditItems || !ui.reportEditTotal) return 0;
+        const rows = [...ui.reportEditItems.querySelectorAll('.report-edit-row')];
+        const total = rows.reduce((sum,row) => sum + (Number(row.querySelector('[data-edit-qty]')?.value || 0) * Number(row.querySelector('[data-edit-price]')?.value || 0)), 0);
+        ui.reportEditTotal.textContent = `Total: R$ ${total.toFixed(2)}`;
+        return total;
+    };
+
+    const appendReportEditItemRow = (item = {nome:'',quantidade:1,preco:0}) => {
+        const row = document.createElement('div'); row.className='report-edit-row';
+        row.innerHTML = `<input data-edit-name aria-label="Produto" value="${window.MercadorIA?.escapeHtml ? window.MercadorIA.escapeHtml(item.nome || '') : String(item.nome||'').replace(/"/g,'&quot;')}" placeholder="Produto"><input data-edit-qty aria-label="Quantidade" type="number" min="0.01" step="0.01" value="${Number(item.quantidade || 1)}"><input data-edit-price aria-label="Preço unitário" type="number" min="0" step="0.01" value="${Number(item.preco || 0).toFixed(2)}"><button type="button" class="report-edit-remove" data-remove-edit-item aria-label="Remover item">✕</button>`;
+        ui.reportEditItems.appendChild(row); updateReportEditTotal();
+    };
+
+    const store = { 
+        loadUI: () => {
+             const savedState = localStorage.getItem(`uiState-${userId}`);
+             if (!savedState) return;
+             try {
+                 const parsed = JSON.parse(savedState) || {};
+                 state.ui = {
+                     ...state.ui,
+                     ...parsed,
+                     listView:{ ...state.ui.listView, ...(parsed.listView || {}), query:'' }
+                 };
+             } catch (_) { /* preferir os padrões atuais a um estado local corrompido */ }
+        },
+        saveUI: () => localStorage.setItem(`uiState-${userId}`, JSON.stringify({ ...state.ui, listView:{ ...state.ui.listView, query:'' } })) 
+    };
+
+    const listOfferState = () => {
+        const raw = window.MercadorIAOffersState || {};
+        return {
+            ready: raw.ready === true,
+            itemIds: new Set((raw.itemIds || []).map(String)),
+            radiusKm: Number(raw.radiusKm || 0)
+        };
+    };
+
+    const originalItemSort = (a,b) => {
+        const na = Number(a.id), nb = Number(b.id);
+        return Number.isFinite(na) && Number.isFinite(nb) ? na - nb : String(a.id).localeCompare(String(b.id));
+    };
+
+    const filteredListItems = (tabName, sourceItems) => {
+        const view = state.ui.listView || {};
+        const normalizedQuery = normalizeItemName(view.query || '');
+        const offers = listOfferState();
+        let items = [...sourceItems];
+        if (normalizedQuery) items = items.filter((item) => normalizeItemName(item.nome || '').includes(normalizedQuery));
+        if (tabName === 'faltando' && offers.ready && view.offerFilter === 'with_offer') items = items.filter((item) => offers.itemIds.has(String(item.id)));
+        if (tabName === 'faltando' && offers.ready && view.offerFilter === 'without_offer') items = items.filter((item) => !offers.itemIds.has(String(item.id)));
+        if (view.sort === 'alpha') items.sort((a,b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity:'base', numeric:true }));
+        else if (tabName === 'faltando' && offers.ready && view.sort === 'offers') items.sort((a,b) => Number(offers.itemIds.has(String(b.id))) - Number(offers.itemIds.has(String(a.id))) || originalItemSort(a,b));
+        else items.sort(originalItemSort);
+        return { items, offers, normalizedQuery };
+    };
+
+    const syncListTools = (tabName = state.currentTab, visibleCount = null, totalCount = null) => {
+        if (!ui.listTools) return;
+        const isReport = tabName === 'relatorios';
+        ui.listTools.hidden = isReport;
+        if (isReport) return;
+        const view = state.ui.listView || {};
+        if (ui.listSearch && ui.listSearch.value !== (view.query || '')) ui.listSearch.value = view.query || '';
+        if (ui.listSearchClear) ui.listSearchClear.hidden = !(view.query || '').trim();
+        if (ui.listSort && ui.listSort.value !== (view.sort || 'original')) ui.listSort.value = view.sort || 'original';
+        const offers = listOfferState();
+        if (ui.listOfferFilter) {
+            ui.listOfferFilter.value = view.offerFilter || 'all';
+            ui.listOfferFilter.disabled = tabName !== 'faltando' || !offers.ready;
+            ui.listOfferFilter.title = tabName !== 'faltando' ? 'Filtro de ofertas disponível em A Comprar' : (!offers.ready ? 'Ative a localização para comparar ofertas' : 'Filtrar itens pela disponibilidade de ofertas');
+        }
+        if (ui.listSort) {
+            const offerOption = ui.listSort.querySelector('option[value="offers"]');
+            if (offerOption) offerOption.disabled = tabName !== 'faltando' || !offers.ready;
+            if ((view.sort === 'offers') && (tabName !== 'faltando' || !offers.ready)) ui.listSort.value = 'original';
+        }
+        if (ui.listViewSummary && Number.isFinite(totalCount) && Number.isFinite(visibleCount)) {
+            const filtered = visibleCount !== totalCount;
+            const offerHint = tabName === 'faltando' && !offers.ready ? ' · ofertas: ative a localização' : '';
+            ui.listViewSummary.innerHTML = filtered ? `<span><strong>${visibleCount}</strong> de ${totalCount} itens exibidos${offerHint}</span>` : `<span><strong>${totalCount}</strong> item${totalCount === 1 ? '' : 's'}${offerHint}</span>`;
+        }
+    };
+
+    const render = {
+        all: () => {
+            render.calculator();
+            render.currentList(true);
+            if (state.currentTab === 'relatorios') render.reports();
+            render.total();
+            render.activeItemHighlight();
+            render.calculatorDisplay();
+            render.activeItemDisplay();
+            render.tabs();
+            renderSmartSuggestions();
+            updatePurchaseLocationOptions();
+        },
+        calculator: () => ui.calculatorFooter.classList.toggle('collapsed', state.ui.isCalculatorCollapsed),
+        currentList: (force = false) => {
+            if (state.currentTab === 'relatorios') { if (state.reportsLoaded || state.reportsLoading) render.reports(); return; }
+            render.list(state.currentTab, force);
+        },
+        list: (tabName, force = false) => {
+            const statusByTab = { faltando:'faltando', comprados:'comprado', adiados:'adiado' };
+            const status = statusByTab[tabName];
+            if (!status || (!force && !state.dirtyLists.has(tabName))) { syncListTools(tabName); return; }
+            const listEl = document.getElementById(`lista-${tabName}`);
+            if (!listEl) return;
+            const messages = { faltando:'Nada para comprar!', comprados:'Carrinho vazio.', adiados:'Nenhum item adiado.' };
+            const sourceItems = state.itens.filter((item) => item.status === status);
+            const viewResult = filteredListItems(tabName, sourceItems);
+            const items = viewResult.items;
+            const fragment = document.createDocumentFragment();
+            if (!sourceItems.length) {
+                const p = document.createElement('p'); p.style.cssText='text-align:center;padding:20px'; p.textContent = messages[tabName]; fragment.appendChild(p);
+            } else if (!items.length) {
+                const p = document.createElement('p'); p.className='list-empty-filter'; p.textContent = 'Nenhum item corresponde à busca ou ao filtro atual.'; fragment.appendChild(p);
+            } else items.forEach((item) => fragment.appendChild(render.createItemElement(item)));
+            listEl.replaceChildren(fragment);
+            syncListTools(tabName, items.length, sourceItems.length);
+            state.dirtyLists.delete(tabName);
+            requestAnimationFrame(() => {
+                render.activeItemHighlight();
+                window.dispatchEvent(new CustomEvent('mercador:list-rendered', { detail:{ tab:tabName } }));
+            });
+        },
+        createItemElement: (item) => {
+            const li = document.createElement('li');
+            li.className = `item-row status-${item.status}`;
+            li.dataset.id = item.id;
+            const safeName = window.MercadorIA?.escapeHtml ? window.MercadorIA.escapeHtml(item.nome) : item.nome;
+            const priceInfo = item.status === 'comprado' ? `<div class="item-price-info">${item.quantidade} × R$ ${Number(item.preco).toFixed(2)} = <strong>R$ ${(item.quantidade * item.preco).toFixed(2)}</strong></div>` : '';
+            const hint = item.status === 'faltando' ? 'Toque em “Lançar preço” quando colocar no carrinho.' : (item.status === 'comprado' ? 'Item lançado na compra atual.' : 'Guardado para a próxima compra.');
+            const actions = item.status === 'faltando'
+              ? `<button type="button" class="item-action-btn primary" data-item-select="${item.id}">🧮 Lançar preço</button><button type="button" class="item-action-btn warn" data-item-defer="${item.id}">⏸ Adiar</button>`
+              : `<button type="button" class="item-action-btn primary" data-item-restore="${item.id}">↩ Voltar à lista</button><span></span>`;
+            li.innerHTML = `<span class="item-emoji">${item.emoji || getEmojiForItem(item.nome)}</span><div class="item-details"><div class="item-main-head"><div class="item-name">${safeName}</div></div>${priceInfo}<div class="item-state-hint">${hint}</div><div class="item-actions-inline">${actions}<button type="button" class="item-action-btn danger" data-item-delete="${item.id}">🗑 Excluir</button></div></div>`;
+            return li;
+        },
+        reports: () => {
+            const listEl = document.getElementById('lista-relatorios');
+            if (!listEl) return;
+            const fragment = document.createDocumentFragment();
+            const importCard=document.createElement('li'); importCard.className='receipt-import-card';
+            importCard.innerHTML=`<div class="receipt-import-card-head"><div><strong>📸 Registrar compra pela nota</strong><p>Use a câmera ou a galeria. O Mercador IA lê o cupom, separa os itens e você confere antes de salvar.</p></div><button type="button" class="receipt-import-btn" data-open-receipt-import>Ler nota</button></div>`;
+            fragment.appendChild(importCard);
+            if (state.reportsLoading && !state.reports.length) {
+                const loading=document.createElement('div'); loading.className='light-loading'; loading.innerHTML='<span></span><span>Carregando relatórios recentes…</span>'; fragment.appendChild(loading);
+                listEl.replaceChildren(fragment);
+                return;
+            }
+            if (state.reports.length === 0) {
+                const p = document.createElement('p'); p.style.cssText='text-align:center;padding:20px'; p.textContent='Nenhum relatório salvo.'; fragment.appendChild(p);
+            } else {
+                [...state.reports].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(report => {
+                    const li = document.createElement('li'); li.className='report-item'; li.dataset.id=report.id;
+                    const reportDate = new Date(report.createdAt).toLocaleString('pt-BR');
+                    const location = report.location && report.location !== 'Não informado' ? report.location : 'Local não informado';
+                    const edits = Number(report.editCount || Object.keys(report.editHistory || {}).length || 0);
+                    li.innerHTML = `<div class="report-details" style="cursor:pointer;"><div class="report-location">${window.MercadorIA?.escapeHtml ? window.MercadorIA.escapeHtml(location) : location}</div><div class="report-date" style="font-size:.82rem;font-weight:500">${reportDate}</div><div class="report-total">Total: R$ ${Number(report.total || 0).toFixed(2)}</div>${edits ? `<span class="report-edited">✎ editado ${edits}x</span>`:''}</div><div class="report-actions"><button type="button" class="report-action-btn edit" data-edit-report="${report.id}" title="Editar relatório">✎</button><button type="button" class="report-action-btn delete" data-delete-report="${report.id}" title="Excluir relatório">🗑</button></div>`;
+                    fragment.appendChild(li);
+                });
+            }
+            if (state.reportsHasMore) {
+                const more = document.createElement('li'); more.className='report-load-more';
+                more.innerHTML = `<button type="button" data-load-more-reports ${state.reportsLoadingMore?'disabled':''}>${state.reportsLoadingMore?'Carregando…':'Carregar relatórios mais antigos'}</button><small>O histórico é carregado em blocos para economizar dados.</small>`;
+                fragment.appendChild(more);
+            }
+            listEl.replaceChildren(fragment);
+            updatePurchaseLocationOptions();
+        },
+        total: () => { const total = state.itens.filter(i => i.status === 'comprado').reduce((acc, item) => acc + (Number(item.preco||0) * Number(item.quantidade||0)), 0); ui.headerTotal.textContent = `R$ ${total.toFixed(2)}`; },
+        activeItemHighlight: () => document.querySelectorAll('.item-row').forEach(row => row.classList.toggle('active', row.dataset.id == state.activeItemId)),
+        calculatorDisplay: () => ui.calcDisplay.textContent = state.calcDisplay.replace('.', ','),
+        activeItemDisplay: () => { const activeItem = state.itens.find(i => i.id == state.activeItemId); ui.activeItemDisplay.textContent = activeItem ? activeItem.nome : 'Nenhum item selecionado'; },
+        tabs: () => {
+            const pending=state.itens.filter(i=>i.status==='faltando').length, bought=state.itens.filter(i=>i.status==='comprado').length, deferred=state.itens.filter(i=>i.status==='adiado').length;
+            document.getElementById('tab-count-faltando').textContent=pending; document.getElementById('tab-count-comprados').textContent=bought; document.getElementById('tab-count-adiados').textContent=deferred;
+            const reportMeta = perfStore.read('report-meta',{recentCount:0,limited:false});
+            document.getElementById('tab-count-relatorios').textContent=state.reportsLoaded ? `${state.reports.length}${state.reports.length>=50?'+':''}` : (reportMeta.recentCount ? `${reportMeta.recentCount}${reportMeta.limited?'+':''}` : '•');
+            document.getElementById('smart-pending-count').textContent=pending; document.getElementById('smart-bought-count').textContent=bought; document.getElementById('smart-deferred-count').textContent=deferred;
+            const adiadosTab=document.querySelector('[data-tab="adiados"]'); const label=adiadosTab.querySelector('span');
+            if(state.activeItemId && state.itens.find(i=>i.id==state.activeItemId)?.status==='faltando'){adiadosTab.classList.add('action-mode');label.textContent='Adiar';}else{adiadosTab.classList.remove('action-mode');label.textContent='Adiados';}
+            syncListTools(state.currentTab);
+        }
+    };
+
+    const calculator = {
+        handleInput: (key, action) => {
+            if (action === 'clear') { state.calcDisplay = '0'; }
+            else if (action === 'decimal' && !state.calcDisplay.includes('.')) { state.calcDisplay += '.'; }
+            else if (action === 'add') { calculator.register(); }
+            else if (['subtract', 'multiply', 'divide'].includes(action)) { const op = {'subtract': '-', 'multiply': '×', 'divide': '÷'}[action]; state.calcDisplay += ` ${op} `; }
+            else if (key.match(/^[0-9]$/)) { if (state.calcDisplay === '0') { state.calcDisplay = key; } else { state.calcDisplay += key; } }
+            render.calculatorDisplay();
+        },
+        register: () => {
+            if (!state.activeItemId) return;
+            const item = state.itens.find(i => i.id == state.activeItemId); if (!item) return;
+            const expression = state.calcDisplay.replace(/,/g, '.').replace(/×/g, '*').replace(/÷/g, '/');
+            let qty = 1; let price = 0;
+            const registerRegex = /^(\d+\.?\d*)\s*[*x]\s*(\d+\.?\d*)$/;
+            if (registerRegex.test(expression)) { const matches = expression.match(registerRegex); qty = parseFloat(matches[1]); price = parseFloat(matches[2]); }
+            else { try { price = eval(expression); } catch (e) { price = NaN; } }
+            if (isNaN(price) || price < 0) { state.calcDisplay = '0'; render.calculatorDisplay(); return; }
+            interactions.updateItem(item.id, { status: 'comprado', quantidade: qty, preco: price });
+            const currentIndex = state.itens.findIndex(i => i.id == state.activeItemId);
+            const nextItem = state.itens.find((i, index) => i.status === 'faltando' && index > currentIndex);
+            state.activeItemId = nextItem ? nextItem.id : null;
+            state.calcDisplay = '0';
+            if(state.activeItemId) { setTimeout(() => { const nextElement = document.querySelector(`[data-id='${state.activeItemId}']`); if(nextElement) nextElement.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }
+        }
+    };
+
+
+    const emitListState = () => {
+        window.MercadorIAListState = state.itens.map((item)=>({ ...item }));
+        window.dispatchEvent(new CustomEvent('mercador:list-updated', { detail:{ items:window.MercadorIAListState } }));
+    };
+
+    const markListsDirty = (...tabs) => {
+        (tabs.length ? tabs : ['faltando','comprados','adiados']).forEach((tab)=>state.dirtyLists.add(tab));
+    };
+
+    const renderAfterListMutation = (affectedTabs = [], { membershipChanged = false } = {}) => {
+        markListsDirty(...affectedTabs);
+        render.currentList();
+        render.total();
+        render.tabs();
+        render.activeItemDisplay();
+        render.activeItemHighlight();
+        if (membershipChanged) renderSmartSuggestions();
+        perfStore.saveList();
+        emitListState();
+    };
+
+    const localUpdateItem = (id, updates) => {
+        const index = state.itens.findIndex((item)=>String(item.id)===String(id));
+        if (index < 0) return null;
+        const before = { ...state.itens[index] };
+        state.itens[index] = { ...state.itens[index], ...updates };
+        renderAfterListMutation([tabForStatus(before.status), tabForStatus(state.itens[index].status)]);
+        return before;
+    };
+
+    const loadRecentReports = async ({ force = false, silent = false } = {}) => {
+        if (!reportsRef || state.reportsLoading) return;
+        if (!force && state.reportsLoaded && Date.now() - state.reportsLoadedAt < 120000) return;
+        state.reportsLoading = true;
+        if (state.currentTab === 'relatorios') render.reports();
+        try {
+            const snapshot = await reportsRef.orderByKey().limitToLast(51).once('value');
+            const data = snapshot.val();
+            const rows = data ? Object.keys(data).sort().map((key)=>({ ...data[key], id:key })) : [];
+            state.reportsHasMore = rows.length > 50;
+            state.reports = state.reportsHasMore ? rows.slice(-50) : rows;
+            state.reportsLoaded = true;
+            state.reportsLoadedAt = Date.now();
+            perfStore.write('report-meta', { recentCount:state.reports.length, limited:state.reportsHasMore, savedAt:Date.now() });
+            perfStore.seedMemoryFromReports(state.reports);
+            if (state.currentTab === 'relatorios') render.reports();
+            render.tabs();
+            renderSmartSuggestions();
+            updatePurchaseLocationOptions();
+        } catch (error) {
+            console.error('Falha ao carregar relatórios recentes:', error);
+            if (!silent) window.MercadorIA?.toast?.('Não foi possível carregar os relatórios agora.', 'error');
+        } finally {
+            state.reportsLoading = false;
+            if (state.currentTab === 'relatorios') render.reports();
+        }
+    };
+
+    const loadMoreReports = async () => {
+        if (!reportsRef || state.reportsLoadingMore || !state.reportsHasMore || !state.reports.length) return;
+        const oldest = [...state.reports].map((r)=>String(r.id)).sort()[0];
+        if (!oldest) return;
+        state.reportsLoadingMore = true; render.reports();
+        try {
+            const snap = await reportsRef.orderByKey().endAt(oldest).limitToLast(51).once('value');
+            const data=snap.val() || {};
+            const known=new Set(state.reports.map((r)=>String(r.id)));
+            const rows=Object.keys(data).sort().map((key)=>({ ...data[key], id:key }));
+            const older=rows.filter((r)=>!known.has(String(r.id)));
+            state.reports = [...state.reports, ...older];
+            state.reportsHasMore = rows.length === 51;
+            perfStore.write('report-meta',{recentCount:Math.min(state.reports.length,50),limited:state.reportsHasMore || state.reports.length>50,savedAt:Date.now()});
+        } catch(error) {
+            console.error('Falha ao carregar relatórios antigos:',error);
+            window.MercadorIA?.toast?.('Não foi possível carregar relatórios mais antigos agora.','error');
+        } finally { state.reportsLoadingMore=false; render.reports(); render.tabs(); }
+    };
+
+    const tabForStatus = (status) => status === 'comprado' ? 'comprados' : status === 'adiado' ? 'adiados' : 'faltando';
+
+    const syncActiveTabUI = () => {
+        document.querySelectorAll('.tab-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === state.currentTab));
+        document.querySelectorAll('.list-container').forEach((cont) => cont.classList.toggle('active', cont.id === `lista-${state.currentTab}-container`));
+    };
+
+    let remoteFlushTimer = null;
+    const pendingRemoteTabs = new Set();
+    let pendingRemoteMembershipChange = false;
+
+    const scheduleRemoteFlush = () => {
+        clearTimeout(remoteFlushTimer);
+        remoteFlushTimer = setTimeout(() => {
+            const affected = [...pendingRemoteTabs];
+            pendingRemoteTabs.clear();
+            affected.forEach((tab)=>state.dirtyLists.add(tab));
+            const currentAffected = affected.includes(state.currentTab);
+            if (currentAffected) render.currentList();
+            render.total();
+            render.tabs();
+            render.activeItemDisplay();
+            render.activeItemHighlight();
+            if (pendingRemoteMembershipChange) renderSmartSuggestions();
+            pendingRemoteMembershipChange = false;
+            perfStore.saveList();
+            emitListState();
+        }, 24);
+    };
+
+    const applyRemoteItem = (id, raw, mode) => {
+        const key=String(id);
+        const index=state.itens.findIndex((item)=>String(item.id)===key);
+        const before=index>=0 ? { ...state.itens[index] } : null;
+        if(mode==='removed') {
+            if(index<0) return;
+            state.itens.splice(index,1);
+            pendingRemoteTabs.add(tabForStatus(before.status));
+            pendingRemoteMembershipChange=true;
+            if(String(state.activeItemId)===key) state.activeItemId=null;
+            scheduleRemoteFlush();
+            return;
+        }
+        const after={ ...(raw || {}), id:key };
+        const beforeSig=before ? listSyncSignature([before]) : '';
+        const afterSig=listSyncSignature([after]);
+        if(before && beforeSig===afterSig) return;
+        if(index>=0) state.itens[index]=after; else state.itens.push(after);
+        if(before) pendingRemoteTabs.add(tabForStatus(before.status));
+        pendingRemoteTabs.add(tabForStatus(after.status));
+        pendingRemoteMembershipChange = pendingRemoteMembershipChange || !before || before.nome !== after.nome;
+        scheduleRemoteFlush();
+    };
+
+
+    // Finalização idempotente: usa sempre o mesmo reportKey enquanto uma compra
+    // ainda não recebeu confirmação do servidor. Repetir o toque não duplica relatório.
+    const pendingFinalizeStorageKey = () => `mercador-ia:pending-finalize:${userId || 'anonymous'}`;
+    const readPendingFinalize = () => { try{return JSON.parse(localStorage.getItem(pendingFinalizeStorageKey())||'null');}catch(_){return null;} };
+    const writePendingFinalize = (value) => { try{localStorage.setItem(pendingFinalizeStorageKey(),JSON.stringify(value));}catch(_){} };
+    const clearPendingFinalize = () => { try{localStorage.removeItem(pendingFinalizeStorageKey());}catch(_){} };
+    const finalizeFingerprint = (comprados,adiados) => receiptHash([
+        ...comprados.map((i)=>`b:${i.id}`).sort(),
+        ...adiados.map((i)=>`a:${i.id}`).sort()
+    ].join('|'));
+    const setFinalizeState = (message,type='') => { if(!ui.finalizeState)return;ui.finalizeState.className=`finalize-state${type?` ${type}`:''}`;ui.finalizeState.textContent=message||''; };
+    const setFinalizeBusy = (busy) => { state.finalizeInFlight=Boolean(busy);ui.finalizePurchaseBtn.disabled=Boolean(busy);ui.closeModalBtn.disabled=Boolean(busy);ui.finalizePurchaseBtn.textContent=busy?'Salvando…':'Finalizar Compra'; };
+    const reconcilePendingFinalization = async () => {
+        const pending=readPendingFinalize();if(!pending?.reportKey||!reportsRef)return;
+        if(Date.now()-Number(pending.startedAt||0)>24*60*60*1000){clearPendingFinalize();return;}
+        try{const snap=await reportsRef.child(pending.reportKey).once('value');if(snap.exists()){clearPendingFinalize();window.MercadorIA?.toast?.('A última compra já estava sincronizada.','success',4500);}}catch(_){/* sem leitura extra insistente */}
+    };
+
+
+    const interactions = {
+        initDataListeners: () => {
+            if (!listRef) return;
+            store.loadUI();
+            render.calculator();
+            syncActiveTabUI();
+            const hadCache = perfStore.loadCachedList();
+            if (hadCache) {
+                markListsDirty();
+                render.currentList(true);
+                render.total(); render.tabs(); renderSmartSuggestions(); emitListState();
+            } else {
+                render.currentList(true); render.tabs(); render.total();
+            }
+
+            database.ref('.info/connected').on('value',(snapshot)=>{state.firebaseConnected=snapshot.val()===true;});
+            reconcilePendingFinalization();
+
+            // Sincronização colaborativa incremental. Depois da carga inicial, cada aparelho
+            // recebe somente o item alterado em vez de baixar/reprocessar a lista inteira.
+            listRef.on('child_added', (snapshot) => applyRemoteItem(snapshot.key, snapshot.val(), 'added'));
+            listRef.on('child_changed', (snapshot) => applyRemoteItem(snapshot.key, snapshot.val(), 'changed'));
+            listRef.on('child_removed', (snapshot) => applyRemoteItem(snapshot.key, null, 'removed'));
+
+            // Uma leitura canônica inicial elimina itens obsoletos de um cache local antigo.
+            // Não existe listener `value` permanente: após isso o fluxo é somente incremental.
+            listRef.once('value').then((snapshot) => {
+                const data=snapshot.val() || {};
+                const incoming=Object.entries(data).map(([id,value])=>({ ...(value||{}), id }));
+                if(listSyncSignature(incoming)!==listSyncSignature(state.itens)){
+                    state.itens=incoming; state.listLoaded=true; markListsDirty();
+                    render.currentList(true); render.total(); render.tabs(); renderSmartSuggestions();
+                    perfStore.saveList(); emitListState();
+                } else state.listLoaded=true;
+                if(state.currentTab==='relatorios') loadRecentReports({silent:false});
+            }).catch((error)=>console.error('Falha na sincronização inicial da lista:',error));
+            updatePurchaseLocationOptions();
+        },
+        addItemByName: async (rawName) => {
+            const nome=String(rawName||'').trim(); if(!nome)return;
+            const normalized=normalizeItemName(nome);
+            const existing=state.itens.find((item)=>normalizeItemName(item.nome)===normalized);
+            if(existing){
+                interactions.switchTab(existing.status==='comprado'?'comprados':existing.status==='adiado'?'adiados':'faltando');
+                setTimeout(()=>document.querySelector(`.item-row[data-id="${existing.id}"]`)?.scrollIntoView({behavior:'smooth',block:'center'}),80);
+                window.MercadorIA?.toast?.('Esse produto já está na sua lista.', 'warning'); return;
+            }
+            const newItemId=String(Date.now());
+            const item={ id:newItemId, nome, emoji:getEmojiForItem(nome), status:'faltando', quantidade:1, preco:0, createdAt:Date.now() };
+            state.itens.push(item); renderAfterListMutation(['faltando'], { membershipChanged:true }); ui.input.value=''; ui.input.focus();
+            try { await listRef.child(newItemId).set({ nome:item.nome, emoji:item.emoji, status:item.status, quantidade:1, preco:0, createdAt:item.createdAt }); }
+            catch(error){ state.itens=state.itens.filter((x)=>String(x.id)!==newItemId); renderAfterListMutation(['faltando'], { membershipChanged:true }); window.MercadorIA?.toast?.('Não foi possível adicionar o item.','error'); }
+        },
+        addItem: (e) => { e.preventDefault(); interactions.addItemByName(ui.input.value); },
+        deleteItem: async (id) => {
+            if (!confirm('Tem certeza que deseja remover este item?')) return;
+            const index=state.itens.findIndex((x)=>String(x.id)===String(id)); if(index<0)return;
+            const removed=state.itens[index]; state.itens.splice(index,1); if (state.activeItemId === id) state.activeItemId = null;
+            renderAfterListMutation([tabForStatus(removed.status)], { membershipChanged:true });
+            try { await listRef.child(id).remove(); } catch(error){ state.itens.splice(index,0,removed); renderAfterListMutation([tabForStatus(removed.status)], { membershipChanged:true }); window.MercadorIA?.toast?.('Não foi possível excluir o item.','error'); }
+        },
+        deleteReport: async (reportId) => {
+            if (!confirm('Tem certeza que deseja excluir este relatório? Esta ação não pode ser desfeita.')) return;
+            const index=state.reports.findIndex((r)=>r.id===reportId); const removed=index>=0?state.reports[index]:null;
+            if(index>=0){state.reports.splice(index,1);render.reports();render.tabs();}
+            try { await reportsRef.child(reportId).remove(); }
+            catch(err){ if(removed){state.reports.splice(index,0,removed);render.reports();render.tabs();} window.MercadorIA?.toast?.('Erro ao excluir relatório.','error'); }
+        },
+        updateItem: async (id, updates) => {
+            const before = localUpdateItem(id, updates); if (!before) return;
+            try { await listRef.child(id).update(updates); }
+            catch(error){ localUpdateItem(id, before); window.MercadorIA?.toast?.('Não foi possível sincronizar a alteração.','error'); }
+        },
+        handleItemClick: (id, status) => { if (status === 'faltando') interactions.selectItem(id); if (status === 'comprado') interactions.updateItem(id, { status: 'faltando', preco: 0, quantidade: 1 }); if (status === 'adiado') interactions.updateItem(id, { status: 'faltando' }); },
+        selectItem: (id) => {
+            const selecting = state.activeItemId !== id; state.activeItemId = selecting ? id : null; state.calcDisplay = '0';
+            if (selecting) { state.ui.isCalculatorCollapsed = false; store.saveUI(); render.calculator(); }
+            render.activeItemHighlight(); render.calculatorDisplay(); render.activeItemDisplay(); render.tabs();
+        },
+        handleTabClick: (tabName) => {
+            if (tabName === 'adiados' && state.activeItemId) {
+                const item = state.itens.find(i => i.id == state.activeItemId);
+                if (item && item.status === 'faltando') { interactions.updateItem(state.activeItemId, { status: 'adiado' }); state.activeItemId = null; return; }
+            }
+            interactions.switchTab(tabName);
+        },
+        switchTab: (tabName) => {
+            if (!tabName || tabName === state.currentTab) return;
+            const oldTab=state.currentTab; const oldContainer=document.getElementById(`lista-${oldTab}-container`);
+            if(oldContainer) state.tabScroll[oldTab]=oldContainer.scrollTop||window.scrollY||0;
+            state.currentTab = tabName;
+            syncActiveTabUI();
+            syncListTools(tabName);
+            if(tabName==='relatorios') loadRecentReports({ silent:false }); else { markListsDirty(tabName); render.list(tabName, true); }
+            requestAnimationFrame(()=>{ const target=document.getElementById(`lista-${tabName}-container`); if(target && state.tabScroll[tabName]) target.scrollTop=state.tabScroll[tabName]; });
+        },
+        toggleCalculator: () => { state.ui.isCalculatorCollapsed = !state.ui.isCalculatorCollapsed; store.saveUI(); render.calculator(); },
+        openReportModal: () => {
+            const faltando = state.itens.filter(i => i.status === 'faltando');
+            if (faltando.length > 0 && !confirm(`Ainda existem ${faltando.length} item${faltando.length===1?'':'s'} em A Comprar. Finalizar agora vai mantê-los para a próxima compra. Deseja continuar?`)) return;
+            const comprados = state.itens.filter(i => i.status === 'comprado');
+            if (!comprados.length) { window.MercadorIA?.toast?.('Nenhum item foi lançado como comprado ainda.', 'warning') || alert('Nenhum item foi comprado ainda.'); return; }
+            const total = comprados.reduce((acc,i)=>acc+(Number(i.preco)*Number(i.quantidade)),0);
+            const previewItems = comprados.map(i=>({nome:i.nome,quantidade:Number(i.quantidade),preco:Number(i.preco)}));
+            ui.reportPaper.textContent = buildReportText({location:'Não informado',items:previewItems,total,createdAt:new Date().toISOString(),note:''});
+            ui.purchaseLocationInput.value=''; setFinalizeState(''); updatePurchaseLocationOptions(); ui.reportModal.classList.add('visible');
+        },
+        finalizeAndReset: async () => {
+            if(state.finalizeInFlight)return;
+            const comprados=state.itens.filter((i)=>i.status==='comprado');
+            if(!comprados.length){ui.reportModal.classList.remove('visible');return;}
+            if(navigator.onLine===false || state.firebaseConnected===false){setFinalizeState('Sem conexão com o Firebase. A compra continua intacta; reconecte e tente novamente.','error');window.MercadorIA?.toast?.('Sem conexão para finalizar agora.','error',5000);return;}
+            const adiados=state.itens.filter((i)=>i.status==='adiado'); const location=ui.purchaseLocationInput.value.trim()||'Não informado'; const fingerprint=finalizeFingerprint(comprados,adiados);
+            let pending=readPendingFinalize();
+            if(!pending || pending.fingerprint!==fingerprint || !pending.reportKey){pending={fingerprint,reportKey:reportsRef.push().key,createdAt:new Date().toISOString(),startedAt:Date.now()};writePendingFinalize(pending);}
+            const createdAt=pending.createdAt; const items=comprados.map((i)=>({nome:i.nome,quantidade:Number(i.quantidade),preco:Number(i.preco),total:Number(i.quantidade)*Number(i.preco)})); const total=items.reduce((acc,i)=>acc+i.total,0);
+            const reportData={content:buildReportText({location,items,total,createdAt,note:''}),location,total,createdAt,purchaseAt:createdAt,items,note:'',editCount:0,createdBy:userId,formatVersion:2,finalizationId:pending.reportKey};
+            const rootUpdates={}; rootUpdates[`purchase_reports/${userId}/${pending.reportKey}`]=reportData;
+            // Somente diferenças: comprados saem; faltando não é tocado; adiados voltam à lista.
+            comprados.forEach((item)=>{rootUpdates[`shopping_lists/${userId}/${item.id}`]=null;});
+            adiados.forEach((item)=>{
+                if(item.status!=='faltando')rootUpdates[`shopping_lists/${userId}/${item.id}/status`]='faltando';
+                if(Number(item.preco||0)!==0)rootUpdates[`shopping_lists/${userId}/${item.id}/preco`]=0;
+                if(Number(item.quantidade||1)!==1)rootUpdates[`shopping_lists/${userId}/${item.id}/quantidade`]=1;
+            });
+            setFinalizeBusy(true);setFinalizeState(`Sincronizando ${comprados.length} item${comprados.length===1?'':'s'} e o relatório…`);
+            try{
+                await database.ref().update(rootUpdates);
+                clearPendingFinalize(); perfStore.rememberPurchase(items,location);
+                const boughtIds=new Set(comprados.map((i)=>String(i.id))),deferredIds=new Set(adiados.map((i)=>String(i.id)));
+                state.itens=state.itens.filter((i)=>!boughtIds.has(String(i.id))).map((i)=>deferredIds.has(String(i.id))?{...i,status:'faltando',preco:0,quantidade:1}:i);
+                markListsDirty();perfStore.saveList();emitListState();
+                if(state.reportsLoaded){const idx=state.reports.findIndex((r)=>r.id===pending.reportKey);const row={...reportData,id:pending.reportKey};if(idx>=0)state.reports[idx]=row;else state.reports.push(row);state.reportsLoadedAt=Date.now();}
+                const meta=perfStore.read('report-meta',{recentCount:0,limited:false});perfStore.write('report-meta',{recentCount:Math.min(50,Number(meta.recentCount||0)+1),limited:Boolean(meta.limited||Number(meta.recentCount||0)>=49),savedAt:Date.now()});
+                render.currentList(true);render.total();render.tabs();renderSmartSuggestions();updatePurchaseLocationOptions();ui.reportModal.classList.remove('visible');if(state.currentTab!=='faltando')interactions.switchTab('faltando');setFinalizeState('');
+                window.MercadorIA?.toast?.('Compra finalizada e sincronizada.','success',4500);
+            }catch(error){
+                console.error('Erro ao finalizar a compra:',error);setFinalizeState('Não houve confirmação do servidor. Toque em Finalizar novamente: o mesmo ID será reutilizado e não haverá relatório duplicado.','error');
+                window.MercadorIA?.toast?.('Não confirmou a finalização. Sua operação está protegida contra duplicação; tente novamente.','error',7000);
+            }finally{setFinalizeBusy(false);}
+        },
+        showReport: (reportId) => {
+            const report=state.reports.find(r=>r.id===reportId); if(!report)return;
+            state.selectedReportId=reportId; ui.reportViewContent.textContent=report.content;
+            const edits=reportHistoryEntries(report); const editedAt=report.lastEditedAt ? new Date(report.lastEditedAt).toLocaleString('pt-BR') : '';
+            ui.reportViewMeta.innerHTML=`<span><strong>Local:</strong> ${window.MercadorIA?.escapeHtml ? window.MercadorIA.escapeHtml(report.location || 'Não informado') : report.location}</span><span><strong>Finalizada:</strong> ${new Date(report.createdAt).toLocaleString('pt-BR')}</span><span><strong>Total:</strong> R$ ${Number(report.total||0).toFixed(2)}</span>${editedAt?`<span><strong>Última edição:</strong> ${editedAt}</span>`:''}`;
+            ui.reportViewAudit.innerHTML=edits.length?`<h4>Histórico de alterações</h4>${edits.map((entry)=>`<div class="report-audit-entry"><strong>${new Date(entry.editedAt).toLocaleString('pt-BR')}</strong> · ${window.MercadorIA?.escapeHtml ? window.MercadorIA.escapeHtml(entry.summary || 'Relatório editado') : entry.summary || 'Relatório editado'}</div>`).join('')}`:'<h4>Histórico de alterações</h4><div class="report-audit-entry">Nenhuma edição registrada.</div>';
+            ui.reportViewModal.classList.add('visible');
+        },
+        openReportEdit: (reportId) => {
+            const report=state.reports.find(r=>r.id===reportId); if(!report)return;
+            state.editingReportId=reportId; ui.editReportLocation.value=report.location==='Não informado'?'':(report.location||''); ui.editReportNote.value=report.note||''; ui.reportEditItems.innerHTML='';
+            const items=reportItemsArray(report); const structured=items.length>0;
+            ui.reportEditItemsWrap.hidden=!structured; ui.reportEditLegacyNote.hidden=structured; ui.addReportItemBtn.hidden=!structured;
+            if(structured) items.forEach(appendReportEditItemRow); else ui.reportEditTotal.textContent=`Total original: R$ ${Number(report.total||0).toFixed(2)}`;
+            ui.reportEditModal.classList.add('visible');
+        },
+        saveReportEdit: async () => {
+            const report=state.reports.find(r=>r.id===state.editingReportId); if(!report)return;
+            const location=ui.editReportLocation.value.trim()||'Não informado'; const note=ui.editReportNote.value.trim(); const oldItems=reportItemsArray(report); let items=oldItems; let total=Number(report.total||0);
+            if(oldItems.length){ items=[...ui.reportEditItems.querySelectorAll('.report-edit-row')].map((row)=>({nome:row.querySelector('[data-edit-name]').value.trim(),quantidade:Number(row.querySelector('[data-edit-qty]').value),preco:Number(row.querySelector('[data-edit-price]').value)})).filter((i)=>i.nome); if(!items.length){window.MercadorIA?.toast?.('O relatório precisa manter pelo menos um item.','warning');return;} if(items.some((i)=>!Number.isFinite(i.quantidade)||i.quantidade<=0||!Number.isFinite(i.preco)||i.preco<0)){window.MercadorIA?.toast?.('Revise quantidade e preço dos itens.','warning');return;} total=items.reduce((sum,i)=>sum+i.quantidade*i.preco,0); }
+            const changes=[]; if(location!==(report.location||'Não informado'))changes.push(`local: “${report.location||'Não informado'}” → “${location}”`); if(note!==(report.note||''))changes.push('observação alterada');
+            const oldSig=oldItems.map(i=>`${normalizeItemName(i.nome)}|${i.quantidade}|${i.preco}`).join(';'); const newSig=items.map(i=>`${normalizeItemName(i.nome)}|${i.quantidade}|${i.preco}`).join(';'); if(oldItems.length && oldSig!==newSig)changes.push(`itens/valores alterados; total R$ ${Number(report.total||0).toFixed(2)} → R$ ${total.toFixed(2)}`);
+            if(!changes.length){ui.reportEditModal.classList.remove('visible');window.MercadorIA?.toast?.('Nenhuma alteração para salvar.','warning');return;}
+            const editedAt=new Date().toISOString(); const editKey=reportsRef.child(report.id).child('editHistory').push().key; const content=oldItems.length?buildReportText({location,items,total,createdAt:report.createdAt,note}):legacyReportTextWithEdits(report,location,note);
+            const beforeSnapshot={location:report.location||'Não informado',note:report.note||'',total:Number(report.total||0)};
+            const afterSnapshot={location,note,total};
+            if(oldItems.length){ beforeSnapshot.items=oldItems.map(i=>({nome:i.nome,quantidade:i.quantidade,preco:i.preco})); afterSnapshot.items=items.map(i=>({nome:i.nome,quantidade:i.quantidade,preco:i.preco})); }
+            const historyEntry={editedAt,actorUid:userId,action:'report_updated',summary:changes.join(' · '),changesCount:changes.length,before:beforeSnapshot,after:afterSnapshot};
+            const updates={location,note,total,content,lastEditedAt:editedAt,lastEditedBy:userId,editCount:Number(report.editCount||Object.keys(report.editHistory||{}).length||0)+1}; if(oldItems.length)updates.items=items.map(i=>({...i,total:i.quantidade*i.preco})); updates[`editHistory/${editKey}`]=historyEntry;
+            ui.saveReportEditBtn.disabled=true; try{await reportsRef.child(report.id).update(updates); Object.assign(report,{location,note,total,content,lastEditedAt:editedAt,lastEditedBy:userId,editCount:updates.editCount}); if(oldItems.length)report.items=updates.items; report.editHistory={...(report.editHistory||{}),[editKey]:historyEntry}; perfStore.seedMemoryFromReports(state.reports); render.reports(); ui.reportEditModal.classList.remove('visible');ui.reportViewModal.classList.remove('visible');window.MercadorIA?.toast?.('Relatório atualizado. A edição ficou registrada no histórico.','success');}catch(error){console.error('Erro ao editar relatório:',error);window.MercadorIA?.toast?.('Não foi possível salvar a edição do relatório.','error',7000);}finally{ui.saveReportEditBtn.disabled=false;}
+        },
+        downloadReport: () => {
+            const updatedReportText = previewReportTextWithLocation();
+            const blob = new Blob([updatedReportText], {type: 'text/plain;charset=utf-8'});
+            const a = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            a.href = url;
+            a.download = `relatorio_compras_${new Date().toISOString().slice(0,10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+        printReport: () => {
+            const updatedReportText = previewReportTextWithLocation();
+            const win = window.open('', '_blank');
+            if (!win) { window.MercadorIA?.toast?.('O navegador bloqueou a janela de impressão. Libere pop-ups e tente novamente.','warning'); return; }
+            const escaped = updatedReportText.replace(/[&<>]/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+            win.document.write(`<html><head><meta charset="utf-8"><title>Relatório de Compra</title><style>body{font-family:ui-monospace,monospace;padding:24px;white-space:pre-wrap}pre{white-space:pre-wrap}</style></head><body><pre>${escaped}</pre></body></html>`);
+            win.document.close();
+            win.focus();
+            win.print();
+        }
+    };
+    
+    ui.form.addEventListener('submit', interactions.addItem);
+    ui.input.addEventListener('input', renderSmartSuggestions); ui.input.addEventListener('focus', renderSmartSuggestions);
+    ui.smartSuggestions?.addEventListener('click',(e)=>{const btn=e.target.closest('[data-smart-add]');if(btn)interactions.addItemByName(decodeURIComponent(btn.dataset.smartAdd));});
+    document.addEventListener('click',(e)=>{if(!e.target.closest('#form-adicionar-item,#smart-suggestions') && ui.smartSuggestions)ui.smartSuggestions.hidden=true;});
+    ui.keypad.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') calculator.handleInput(e.target.textContent, e.target.dataset.action); });
+    ui.tabs.addEventListener('click', e => { const btn=e.target.closest('.tab-btn'); if(btn) interactions.handleTabClick(btn.dataset.tab); });
+    ui.listSearch?.addEventListener('input', (event) => {
+        state.ui.listView.query = event.target.value || '';
+        markListsDirty(state.currentTab); render.currentList(true); syncListTools(state.currentTab);
+    });
+    ui.listSearchClear?.addEventListener('click', () => {
+        state.ui.listView.query=''; if(ui.listSearch) ui.listSearch.value=''; markListsDirty(state.currentTab); render.currentList(true); syncListTools(state.currentTab); ui.listSearch?.focus();
+    });
+    ui.listOfferFilter?.addEventListener('change', (event) => {
+        state.ui.listView.offerFilter=event.target.value || 'all'; store.saveUI(); markListsDirty('faltando'); if(state.currentTab==='faltando')render.currentList(true);
+    });
+    ui.listSort?.addEventListener('change', (event) => {
+        state.ui.listView.sort=event.target.value || 'original'; store.saveUI(); if(state.currentTab!=='relatorios'){markListsDirty(state.currentTab);render.currentList(true);}
+    });
+    window.addEventListener('mercador:offers-updated', () => {
+        markListsDirty('faltando'); if(state.currentTab==='faltando')render.currentList(true); else syncListTools(state.currentTab);
+    });
+    document.getElementById('lista-relatorios').addEventListener('click', e => { const importBtn=e.target.closest('[data-open-receipt-import]'); if(importBtn){openReceiptImport();return;} const moreBtn=e.target.closest('[data-load-more-reports]'); if(moreBtn){loadMoreReports();return;} const deleteBtn=e.target.closest('[data-delete-report]'); if(deleteBtn){interactions.deleteReport(deleteBtn.dataset.deleteReport);return;} const editBtn=e.target.closest('[data-edit-report]'); if(editBtn){interactions.openReportEdit(editBtn.dataset.editReport);return;} const reportRow=e.target.closest('.report-item'); if(reportRow)interactions.showReport(reportRow.dataset.id); });
+    ui.appContainer.addEventListener('click', e => { if(e.target.closest('.item-offer-action,.offer-sheet-overlay'))return; const row=e.target.closest('.item-row'); if(!row)return; const id=row.dataset.id; const item=state.itens.find(i=>i.id===id); if(!item)return; if(e.target.closest('[data-item-delete]')){interactions.deleteItem(id);return;} if(e.target.closest('[data-item-defer]')){interactions.updateItem(id,{status:'adiado'});if(state.activeItemId===id)state.activeItemId=null;return;} if(e.target.closest('[data-item-restore]')){interactions.updateItem(id,{status:'faltando',preco:0,quantidade:1});return;} if(e.target.closest('[data-item-select]')){interactions.selectItem(id);return;} if(item.status==='faltando' && e.target.closest('.item-details'))interactions.selectItem(id); });
+    ui.btnFinalizar.addEventListener('click', interactions.openReportModal);
+    ui.closeModalBtn.addEventListener('click', () => {if(!state.finalizeInFlight){setFinalizeState('');ui.reportModal.classList.remove('visible');}});
+    ui.closeViewModalBtn.addEventListener('click', () => ui.reportViewModal.classList.remove('visible'));
+    ui.editViewReportBtn.addEventListener('click',()=>{if(state.selectedReportId){ui.reportViewModal.classList.remove('visible');interactions.openReportEdit(state.selectedReportId);}});
+    ui.cancelReportEditBtn.addEventListener('click',()=>ui.reportEditModal.classList.remove('visible'));
+    ui.saveReportEditBtn.addEventListener('click',interactions.saveReportEdit);
+    ui.addReportItemBtn.addEventListener('click',()=>appendReportEditItemRow());
+    ui.reportEditItems.addEventListener('input',updateReportEditTotal);
+    ui.reportEditItems.addEventListener('click',(e)=>{const btn=e.target.closest('[data-remove-edit-item]');if(btn){btn.closest('.report-edit-row')?.remove();updateReportEditTotal();}});
+
+    ui.receiptCancel.addEventListener('click',()=>{if(!state.receiptImport.reading){ui.receiptImportModal.classList.remove('visible');resetReceiptImport();}});
+    ui.receiptCameraBtn.addEventListener('click',()=>ui.receiptCameraInput.click());
+    ui.receiptGalleryBtn.addEventListener('click',()=>ui.receiptGalleryInput.click());
+    ui.receiptCameraInput.addEventListener('change',(e)=>{addReceiptFiles(e.target.files);e.target.value='';});
+    ui.receiptGalleryInput.addEventListener('change',(e)=>{addReceiptFiles(e.target.files);e.target.value='';});
+    ui.receiptImages.addEventListener('click',(e)=>{const btn=e.target.closest('[data-remove-receipt-image]');if(!btn)return;const idx=Number(btn.dataset.removeReceiptImage);if(!Number.isInteger(idx))return;try{URL.revokeObjectURL(state.receiptImport.urls[idx]);}catch(_){}state.receiptImport.files.splice(idx,1);state.receiptImport.urls.splice(idx,1);renderReceiptImages();});
+    ui.receiptRead.addEventListener('click',readReceiptPhotos);
+    ui.receiptSave.addEventListener('click',saveReceiptPurchase);
+    ui.receiptAddItem.addEventListener('click',()=>{appendReceiptItemRow();updateReceiptReconcile();});
+    ui.receiptItems.addEventListener('input',updateReceiptReconcile);
+    ui.receiptItems.addEventListener('click',(e)=>{const btn=e.target.closest('[data-remove-receipt-item]');if(btn){btn.closest('.receipt-item-row')?.remove();updateReceiptReconcile();}});
+    ui.receiptTotal.addEventListener('input',updateReceiptReconcile);
+    ui.downloadReportBtn.addEventListener('click', interactions.downloadReport);
+    ui.printReportBtn.addEventListener('click', interactions.printReport);
+    ui.finalizePurchaseBtn.addEventListener('click', interactions.finalizeAndReset);
+    ui.toggleCalcBtn.addEventListener('click', interactions.toggleCalculator);
+});
+
+let newWorker;
+function showUpdateBar() {
+    const banner = document.getElementById('update-banner');
+    banner.style.display = 'block';
+    document.getElementById('update-btn').addEventListener('click', () => {
+        newWorker.postMessage({ action: 'skipWaiting' });
+    });
+}
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").then(reg => {
+            reg.addEventListener('updatefound', () => {
+                newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateBar();
+                    }
+                });
+            });
+        });
+        let refreshing;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            window.location.reload();
+            refreshing = true;
+        });
+    });
+}
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('install-banner').style.display = 'flex';
+});
+document.addEventListener('click', async (e) => {
+    if (e.target && e.target.id === 'install-btn') {
+        document.getElementById('install-banner').style.display = 'none';
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+    }
+    if (e.target && e.target.id === 'dismiss-btn') {
+        document.getElementById('install-banner').style.display = 'none';
+    }
+});
+window.addEventListener('appinstalled', () => {
+    document.getElementById('install-banner').style.display = 'none';
+    deferredPrompt = null;
+});
+</script>
+    <script src="./js/lista-promocoes.js?v=3.4.0"></script>
+</body>
+</html>
