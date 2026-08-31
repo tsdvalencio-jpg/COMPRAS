@@ -8,7 +8,7 @@
   const previous = window.MercadorPDFImporter || {};
   if (previous.__professionalConsensusEngineInstalled) return;
 
-  const ENGINE_VERSION = '7.3.0-optional-ai-local-fallback';
+  const ENGINE_VERSION = '7.4.0-local-consensus-certifier';
   const KNOWLEDGE_SCHEMA_VERSION = 'mercador.encarte.knowledge.v7';
   const FIREBASE_SDK_VERSION = '12.16.0';
   const PRIMARY_MODEL = 'gemini-3.7-flash';
@@ -1030,71 +1030,188 @@ REGRAS ABSOLUTAS:
     return message.slice(0, 180) || 'motor multimodal indisponível';
   }
 
-  function forceSupervisedFallback(result, reason) {
+  const LOCAL_HARD_RISKS = new Set([
+    'association_disagreement','missing_validity','too_many_prices','ambiguous_price_kind',
+    'invalid_price','invalid_previous_price','header_contamination','price_inside_product_text',
+    'price_cluster_disagreement','ocr_price_without_currency','ocr_low_price_confidence',
+    'ocr_validity_inferred','ocr_price_scale_suspicious','ocr_price_conflict',
+    'ocr_low_description_quality','ocr_block_ownership_weak','knowledge_legacy_description_conflict',
+    'text_source_no_geometry','text_price_without_currency','image_price_conflict',
+    'image_text_single_pass','image_grid_incomplete','invalid_source_geometry','source_geometry_conflict'
+  ]);
+
+  function hasUsableGeometry(candidate) {
+    const box = candidate?.sourceBox || candidate?.cardBox || candidate?.priceBox;
+    if (!box || typeof box !== 'object') return false;
+    const w = Number(box.width ?? (Number(box.x1) - Number(box.x0)));
+    const h = Number(box.height ?? (Number(box.y1) - Number(box.y0)));
+    return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0;
+  }
+
+  function validLocalPeriod(candidate, result) {
+    const startAt = Number(candidate?.startAt || result?.validity?.startAt || 0);
+    const endAt = Number(candidate?.endAt || result?.validity?.endAt || 0);
+    return startAt > 0 && endAt > startAt;
+  }
+
+  function cleanProductForCertification(value) {
+    return clean(value).replace(/\s+/g, ' ').trim();
+  }
+
+  function localCertification(candidate, result, sourceType) {
+    const risks = new Set(candidate?.riskFlags || []);
+    const hardBlocked = [...risks].some((risk) => LOCAL_HARD_RISKS.has(risk));
+    const productName = cleanProductForCertification(candidate?.productName);
+    const tokens = productName.split(/\s+/).filter(Boolean);
+    const price = Number(candidate?.price);
+    const textSource = sourceType === 'text' || /text/i.test(String(candidate?.extractionMode || ''));
+    const imageSource = sourceType === 'image' || /image|ocr-image/i.test(String(candidate?.extractionMode || ''));
+    const originalAuto = candidate?.automationSafe === true;
+    const structuralSafe = candidate?.structuralSafe === true;
+    const confidence = clamp(Number(candidate?.confidence || 0), 0, 1);
+    const association = clamp(Number(candidate?.associationAgreement || 0), 0, 1);
+    const ownership = clamp(Number(candidate?.ownershipConfidence || 0), 0, 1);
+    const coherence = clamp(Number(candidate?.clusterCoherence || 0), 0, 1);
+    const description = clamp(Number(candidate?.descriptionAgreement || candidate?.blockCoherence || 0), 0, 1);
+    const cardConfidence = Number.isFinite(Number(candidate?.cardConfidence)) ? clamp(Number(candidate.cardConfidence), 0, 1) : null;
+    const cardScore = Number.isFinite(Number(candidate?.cardResolutionScore)) ? clamp(Number(candidate.cardResolutionScore), 0, 1) : null;
+    const detectedPrices = Array.isArray(candidate?.detectedPrices) ? candidate.detectedPrices.filter((x) => Number.isFinite(Number(x)) && Number(x) > 0) : [];
+    const clubPair = candidate?.priceKind === 'club' && Number(candidate?.previousPrice) > price;
+    const priceShapeSafe = detectedPrices.length <= 1 || (detectedPrices.length === 2 && clubPair);
+    const identitySafe = tokens.length >= 2 && tokens.length <= 16 && !/R\$|\b\d{1,4}[,.]\d{2}\b/.test(productName);
+    const periodSafe = validLocalPeriod(candidate, result);
+    const geometrySafe = hasUsableGeometry(candidate);
+    const baseSafe = !hardBlocked && Number.isFinite(price) && price > 0 && price < 10000 && identitySafe && periodSafe && priceShapeSafe;
+
+    if (!baseSafe || textSource) {
+      return { safe:false, confidence, tier:'review', reason:'evidência insuficiente para automação' };
+    }
+
+    // Regra 1: se o motor documental original já provou automação, preservamos a decisão.
+    // Isso exige que todas as travas críticas continuem limpas nesta camada.
+    if (originalAuto) {
+      const certified = Math.max(.99, confidence);
+      return { safe:true, confidence:Math.min(.997, certified), tier:'native-certified', reason:'automação já comprovada pelo motor documental e revalidada sem riscos críticos' };
+    }
+
+    // Imagens/OCR permanecem mais conservadoras: somente a automação já comprovada pelo próprio motor visual é aceita.
+    if (imageSource) {
+      return { safe:false, confidence, tier:structuralSafe ? 'supervised' : 'review', reason:'imagem exige consenso visual forte antes de automação' };
+    }
+
+    // PDF com texto/geometry: segunda camada de certificação determinística.
+    // Só promove quando os sinais independentes de associação, propriedade e coerência convergem.
+    const strongCard = (cardConfidence == null || cardConfidence >= .90) && (cardScore == null || cardScore >= .78);
+    const strongConsensus = structuralSafe && geometrySafe && confidence >= .965
+      && association >= .90 && ownership >= .78 && coherence >= .80
+      && (description === 0 || description >= .68) && strongCard;
+
+    if (strongConsensus) {
+      const proof = Math.min(1,
+        confidence * .32 + association * .20 + ownership * .17 + coherence * .15
+        + (description || .90) * .08 + (cardConfidence == null ? .94 : cardConfidence) * .05
+        + (cardScore == null ? .90 : cardScore) * .03
+      );
+      // A certificação local só recebe selo automático quando o consenso composto alcança 99%.
+      if (proof >= .99) {
+        return { safe:true, confidence:Math.min(.997, Math.max(.99, proof)), tier:'local-consensus', reason:'produto, preço, validade e geometria confirmados por múltiplas evidências locais' };
+      }
+      return { safe:false, confidence:Math.max(confidence, proof), tier:'supervised', reason:'estrutura forte, mas consenso composto abaixo do limite automático' };
+    }
+
+    return { safe:false, confidence, tier:structuralSafe ? 'supervised' : 'review', reason:'caso ambíguo mantido como exceção' };
+  }
+
+  function certifyLocalResult(result, source, reason = '') {
     const out = result && typeof result === 'object' ? result : {};
+    const sourceType = clean(out.sourceType || (source?.text ? 'text' : ((source?.files || [])[0]?.type?.startsWith('image/') ? 'image' : 'pdf'))).toLowerCase();
+    const seen = new Map();
     const candidates = Array.isArray(out.candidates) ? out.candidates : [];
-    out.candidates = candidates.map((candidate) => ({
-      ...candidate,
-      automationSafe: false,
-      aiFallback: true,
-      riskFlags: unique([...(candidate.riskFlags || []), 'ai_unavailable_local_review']),
-      evidence: unique([...(candidate.evidence || []), 'análise local preservada para conferência; motor multimodal opcional indisponível'])
-    }));
-    out.aiFallback = true;
-    out.aiFallbackReason = reason;
-    out.extractionMode = `${out.extractionMode || 'local'}+supervised-local-fallback`;
-    out.engineVersion = `${out.engineVersion || 'local'}+optional-ai-fallback`;
+
+    out.candidates = candidates.map((candidate) => {
+      const certification = localCertification(candidate, out, sourceType);
+      const nameKey = cleanProductForCertification(candidate?.productName).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+      const duplicateKey = `${Number(candidate?.pageNumber || 0)}|${nameKey}|${Number(candidate?.price || 0).toFixed(2)}`;
+      const duplicate = nameKey && seen.has(duplicateKey);
+      if (!duplicate && nameKey) seen.set(duplicateKey, candidate?.id || duplicateKey);
+
+      const safe = certification.safe && !duplicate;
+      const risks = unique([...(candidate?.riskFlags || []), ...(duplicate ? ['duplicate_candidate_same_import'] : [])]);
+      const evidence = unique([
+        ...(candidate?.evidence || []),
+        safe ? `certificação local: ${certification.reason}` : `triagem local: ${certification.reason}`,
+        reason ? `motor externo não utilizado: ${reason}` : 'certificação executada integralmente no motor local'
+      ]);
+      return {
+        ...candidate,
+        confidence: safe ? certification.confidence : Math.max(Number(candidate?.confidence || 0), Number(certification.confidence || 0)),
+        automationSafe: safe,
+        localCertification: certification.tier,
+        localCertificationConfidence: certification.confidence,
+        riskFlags: risks,
+        evidence
+      };
+    });
+
+    const automatic = out.candidates.filter((c) => c.automationSafe === true && !(c.riskFlags || []).some((r) => LOCAL_HARD_RISKS.has(r))).length;
+    out.localCertified = true;
+    out.aiFallback = false;
+    out.aiFallbackReason = '';
+    out.extractionMode = `${out.extractionMode || 'local'}+local-consensus-certifier`;
+    out.engineVersion = `${out.engineVersion || 'local'}+7.4.0-local-consensus-certifier`;
     out.knowledgeMetrics = out.knowledgeMetrics || {};
-    out.knowledgeMetrics.modes = unique([...(out.knowledgeMetrics.modes || []), 'local-supervised-fallback', 'ai-optional']);
-    out.knowledgeMetrics.automatic = 0;
+    out.knowledgeMetrics.modes = unique([...(out.knowledgeMetrics.modes || []), 'local-consensus-certifier']);
+    out.knowledgeMetrics.automatic = automatic;
     out.knowledgeMetrics.candidates = out.candidates.length;
 
     if (out.knowledgeDocument && typeof out.knowledgeDocument === 'object') {
       out.knowledgeDocument.extraction = {
         ...(out.knowledgeDocument.extraction || {}),
-        aiOptional: true,
-        aiFallback: true,
-        aiFallbackReason: reason,
-        fallbackMode: 'local-supervised',
-        automaticPublicationAllowed: false
+        localCertification: true,
+        automaticPublicationAllowed: automatic > 0,
+        externalAIRequired: false
       };
       if (Array.isArray(out.knowledgeDocument.offerCandidates)) {
         const byId = new Map(out.candidates.map((c) => [String(c.id || ''), c]));
         out.knowledgeDocument.offerCandidates = out.knowledgeDocument.offerCandidates.map((offer) => {
           const candidate = byId.get(String(offer.id || ''));
-          return {
+          return candidate ? {
             ...offer,
-            automationSafe: false,
-            riskFlags: unique([...(offer.riskFlags || []), 'ai_unavailable_local_review']),
-            confidence: candidate ? candidate.confidence : offer.confidence
-          };
+            automationSafe: candidate.automationSafe === true,
+            structuralSafe: candidate.structuralSafe === true,
+            confidence: candidate.confidence,
+            riskFlags: candidate.riskFlags,
+            localCertification: candidate.localCertification
+          } : offer;
         });
       }
-      out.knowledgeDocument.resolvedOffers = [];
+      out.knowledgeDocument.resolvedOffers = out.candidates
+        .filter((c) => c.automationSafe === true && !(c.riskFlags || []).some((r) => LOCAL_HARD_RISKS.has(r)))
+        .map((c) => ({
+          id:c.id, productName:c.productName, brand:c.brand || '', packageText:c.packageText || '', category:c.category || 'outros',
+          price:c.price, previousPrice:c.previousPrice || null, priceKind:c.priceKind || 'general', requiresClub:c.requiresClub === true,
+          clubName:c.clubName || '', conditions:c.conditions || '', pageNumber:c.pageNumber || 1, confidence:c.confidence, bbox:c.sourceBox || null
+        }));
     }
     return out;
   }
 
-  async function analyzeWithLocalFallback(source, options, onProgress, originalError) {
-    if (!previousAnalyzeSource && !previousAnalyzeFile) throw professionalError(originalError);
-    const reason = fallbackReason(originalError);
-    console.warn('[Mercador IA] Motor multimodal opcional indisponível; usando análise local supervisionada.', originalError);
-    if (onProgress) onProgress({ pageNumber: 1, numPages: 1, percent: 6, mode: 'local-fallback-start', reason });
-
+  async function analyzeWithLocalCertification(source, options, onProgress, reason = '') {
+    if (!previousAnalyzeSource && !previousAnalyzeFile) throw new Error('Motor documental local indisponível.');
+    if (onProgress) onProgress({ pageNumber:1, numPages:1, percent:4, mode:'local-certifier-start' });
     let result;
     if (previousAnalyzeSource) {
       result = await previousAnalyzeSource(source, options, (progress = {}) => {
-        if (onProgress) onProgress({ ...progress, mode: progress.mode || 'local-fallback-running', aiFallback: true });
+        if (onProgress) onProgress({ ...progress, mode:progress.mode || 'local-certifier-running' });
       });
     } else {
       const files = [...(source?.files || [])].filter(Boolean);
-      if (files.length !== 1 || String(source?.text || '').trim()) throw professionalError(originalError);
+      if (files.length !== 1 || String(source?.text || '').trim()) throw new Error('Entrada não suportada pelo motor documental local.');
       result = await previousAnalyzeFile(files[0], options, onProgress);
     }
-
-    activeSource = { type: 'legacy', files: [], text: '', hash: '', pdfDoc: null };
-    result = forceSupervisedFallback(result, reason);
-    if (onProgress) onProgress({ pageNumber: Number(result.numPages || 1), numPages: Number(result.numPages || 1), percent: 100, mode: 'local-fallback-complete', reason });
+    activeSource = { type:'legacy', files:[], text:'', hash:'', pdfDoc:null };
+    result = certifyLocalResult(result, source, reason);
+    if (onProgress) onProgress({ pageNumber:Number(result.numPages || 1), numPages:Number(result.numPages || 1), percent:100, mode:'local-certifier-complete' });
     return result;
   }
 
@@ -1108,19 +1225,19 @@ REGRAS ABSOLUTAS:
   }
 
   async function analyzeSource(source = {}, options = {}, onProgress) {
-    try {
-      const prepared = await prepareSource(source, options);
-      return await analyzePrepared(prepared, options, onProgress);
-    } catch (error) {
-      console.error('[Mercador IA] Leitura multimodal opcional falhou:', error);
-      if (isInputConfigurationError(error)) throw error;
+    // Produção atual: motor local certificado é a rota principal e não depende de Firebase AI Logic/App Check.
+    // A leitura multimodal externa só é tentada se algum fluxo futuro habilitar explicitamente enableExternalAI=true.
+    if (options?.enableExternalAI === true) {
       try {
-        return await analyzeWithLocalFallback(source, options, onProgress, error);
-      } catch (fallbackError) {
-        console.error('[Mercador IA] Análise local de contingência também falhou:', fallbackError);
-        throw fallbackError instanceof Error ? fallbackError : professionalError(error);
+        const prepared = await prepareSource(source, options);
+        return await analyzePrepared(prepared, options, onProgress);
+      } catch (error) {
+        console.warn('[Mercador IA] Leitura multimodal opcional indisponível; seguindo com certificação local.', error);
+        if (isInputConfigurationError(error)) throw error;
+        return analyzeWithLocalCertification(source, options, onProgress, fallbackReason(error));
       }
     }
+    return analyzeWithLocalCertification(source, options, onProgress, 'não necessário para este fluxo');
   }
 
   async function analyzeFile(file, options = {}, onProgress) {
@@ -1222,7 +1339,7 @@ REGRAS ABSOLUTAS:
     lastKnowledgeDocument: null,
     __professionalConsensusEngineInstalled: true,
     __professionalEngineVersion: ENGINE_VERSION,
-    __professionalTest: { normalizeDocument, clusterPasses, buildCandidates, validityConsensus }
+    __professionalTest: { normalizeDocument, clusterPasses, buildCandidates, validityConsensus, localCertification, certifyLocalResult }
   };
 
   const wrappedAnalyzeSource = api.analyzeSource.bind(api);
@@ -1238,5 +1355,5 @@ REGRAS ABSOLUTAS:
   };
 
   window.MercadorPDFImporter = api;
-  console.info(`[Mercador IA] Document Intelligence ${ENGINE_VERSION}: IA multimodal opcional + análise local supervisionada de contingência.`);
+  console.info(`[Mercador IA] Document Intelligence ${ENGINE_VERSION}: certificação local por consenso; IA externa não é necessária.`);
 })();

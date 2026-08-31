@@ -1,4 +1,4 @@
-const CACHE = 'mercador-ia-shell-v3.8.0-optional-ai-safe-fallback';
+const CACHE = 'mercador-ia-shell-v3.9.0-local-consensus-certifier';
 
 // Shell enxuto do consumidor. O painel Admin/PDF e o Card Resolver são carregados
 // somente quando um administrador realmente os acessa — não pesam no PWA do usuário.
