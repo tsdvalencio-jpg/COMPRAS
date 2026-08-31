@@ -1,4 +1,4 @@
-const CACHE = 'mercador-ia-shell-v3.4.0-list-importer-fix';
+const CACHE = 'mercador-ia-shell-v3.5.0-checkout-usability';
 
 // Shell enxuto do consumidor. O painel Admin/PDF e o Card Resolver são carregados
 // somente quando um administrador realmente os acessa — não pesam no PWA do usuário.

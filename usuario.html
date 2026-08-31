@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Mercador IA — Sua Compra</title>
-    <!-- Build consumidor: V2.9 · nota por câmera/galeria + finalização diferencial/idempotente -->
+    <!-- Build consumidor: V3.5 · lista guiada + calculadora corrigida + finalização evidente/idempotente -->
     <meta name="theme-color" content="#007aff"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="./manifest.webmanifest">
@@ -299,6 +299,24 @@
             .report-edit-row{grid-template-columns:minmax(0,1fr) 62px 78px 36px;gap:4px;padding:6px}.report-edit-row input{padding:7px 5px;font-size:14px}
         }
     
+        /* Mercador IA V3.5 — checkout guiado sem remover nenhuma lógica */
+        .header-controls{grid-template-columns:minmax(0,1fr) auto}
+        .checkout-header-btn{width:auto!important;min-width:112px!important;height:50px!important;padding:0 13px!important;gap:6px!important;font-size:.86rem!important;line-height:1!important;white-space:nowrap}
+        .checkout-header-btn span{display:inline-block}
+        .checkout-cta{position:sticky;bottom:8px;z-index:35;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 2px;padding:10px 11px;background:#16241a;color:#fff;border:1px solid rgba(52,199,89,.55);border-radius:14px;box-shadow:0 8px 22px rgba(0,0,0,.2)}
+        .checkout-cta[hidden]{display:none!important}
+        .checkout-cta-copy{display:flex;flex-direction:column;min-width:0;line-height:1.15}.checkout-cta-copy span{font-size:.72rem;color:#b8c9bd}.checkout-cta-copy strong{font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        #checkout-cta-btn{flex:0 0 auto;border:0;border-radius:10px;min-height:43px;padding:8px 13px;background:var(--cor-sucesso);color:white;font:inherit;font-size:.84rem;font-weight:850;cursor:pointer;white-space:nowrap}
+        .calc-instruction{margin:-1px 1px 9px;color:#cbd3da;font-size:.76rem;line-height:1.3;text-align:center}
+        .keypad .backspace{background:#6c757d}
+        .keypad .key-wide{grid-column:span 2;font-size:.92rem!important}
+        .keypad .action.key-wide{font-size:.9rem!important}
+        .checkout-modal-title{margin:0 0 13px;font-size:1.15rem;color:#1e2d22}
+        .purchase-guide{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:7px;color:#68737d;font-size:.68rem;font-weight:650;white-space:nowrap;overflow:hidden}.purchase-guide span{display:inline-flex;align-items:center;gap:3px}.purchase-guide b{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:#e7eef7;color:#1768b5;font-size:.62rem}
+        @media(max-width:520px){.checkout-header-btn{min-width:98px!important;padding:0 10px!important;font-size:.78rem!important}.checkout-cta{gap:8px}.checkout-cta-copy strong{font-size:.82rem}#checkout-cta-btn{padding:8px 10px;font-size:.78rem}}
+        @media(max-width:420px){.purchase-guide{justify-content:flex-start;overflow-x:auto;scrollbar-width:none}.purchase-guide::-webkit-scrollbar{display:none}}
+        @media(max-width:360px){.checkout-header-btn span{display:none}.checkout-header-btn{min-width:50px!important;width:50px!important;padding:0!important}.checkout-cta{align-items:stretch;flex-direction:column}.checkout-cta-copy{align-items:center}#checkout-cta-btn{width:100%}}
+
         /* Mercador IA — usabilidade da lista sem alterar o fluxo de compra */
         .list-tools{display:grid;grid-template-columns:minmax(170px,1.4fr) minmax(120px,.7fr) minmax(145px,.8fr) auto;gap:7px;align-items:center;margin:-2px 0 10px;padding:9px;border:1px solid rgba(33,37,41,.09);border-radius:12px;background:rgba(248,249,250,.86);box-shadow:0 2px 8px rgba(0,0,0,.035);position:sticky;top:55px;z-index:7;backdrop-filter:blur(10px)}
         .list-tools[hidden]{display:none!important}
@@ -346,8 +364,9 @@
                     <input type="text" id="input-novo-item" placeholder="O que está faltando?" aria-label="Adicionar produto à lista">
                     <button type="submit" class="btn btn-primary" title="Adicionar produto">+</button>
                 </form>
-                <button id="btn-finalizar" class="btn btn-success" title="Finalizar compra e gerar relatório">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <button id="btn-finalizar" class="btn btn-success checkout-header-btn" title="Finalizar compra e gerar relatório" aria-label="Finalizar compra">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+                    <span>Finalizar</span>
                 </button>
             </div>
             <div id="smart-suggestions" class="smart-suggestions" hidden aria-label="Sugestões de produtos"></div>
@@ -357,6 +376,7 @@
                 <span class="smart-pill">⏸ <strong id="smart-deferred-count">0</strong> adiados</span>
                 <span class="smart-pill offer">🔥 <strong id="smart-offer-count">0</strong> com oferta</span>
             </div>
+            <div class="purchase-guide" aria-label="Como usar a lista"><span><b>1</b> Escolha o item</span><span>›</span><span><b>2</b> Lance o preço</span><span>›</span><span><b>3</b> Finalize a compra</span></div>
         </header>
 
         <main class="main-content">
@@ -403,6 +423,14 @@
             <div id="lista-comprados-container" class="list-container"><ul id="lista-comprados" class="item-list"></ul></div>
             <div id="lista-adiados-container" class="list-container"><ul id="lista-adiados" class="item-list"></ul></div>
             <div id="lista-relatorios-container" class="list-container"><ul id="lista-relatorios" class="item-list"></ul></div>
+
+            <aside id="checkout-cta" class="checkout-cta" hidden aria-live="polite">
+                <div class="checkout-cta-copy">
+                    <span>Compra em andamento</span>
+                    <strong id="checkout-cta-summary">0 itens • R$ 0,00</strong>
+                </div>
+                <button id="checkout-cta-btn" type="button">✅ Finalizar compra</button>
+            </aside>
         </main>
 
         <footer class="calculator-footer">
@@ -412,11 +440,13 @@
                     <div id="active-item-display">Nenhum item selecionado</div>
                     <div id="calc-display">0</div>
                 </div>
-                <div class="keypad">
-                    <button>7</button><button>8</button><button>9</button><button class="operator" data-action="multiply">×</button>
-                    <button>4</button><button>5</button><button>6</button><button class="operator" data-action="subtract">−</button>
-                    <button>1</button><button>2</button><button>3</button><button class="action" data-action="add">+</button>
-                    <button class="clear" data-action="clear">C</button><button>0</button><button data-action="decimal">.</button><button class="operator" data-action="divide">÷</button>
+                <div id="calc-instruction" class="calc-instruction">Selecione “Lançar preço” em um item para começar.</div>
+                <div class="keypad" aria-label="Calculadora de preço">
+                    <button type="button">7</button><button type="button">8</button><button type="button">9</button><button type="button" class="operator" data-action="divide">÷</button>
+                    <button type="button">4</button><button type="button">5</button><button type="button">6</button><button type="button" class="operator" data-action="multiply">×</button>
+                    <button type="button">1</button><button type="button">2</button><button type="button">3</button><button type="button" class="operator" data-action="subtract">−</button>
+                    <button type="button">0</button><button type="button" data-action="decimal">,</button><button type="button" class="backspace" data-action="backspace" aria-label="Apagar último dígito" title="Apagar último dígito">⌫</button><button type="button" class="operator" data-action="plus">+</button>
+                    <button type="button" class="clear key-wide" data-action="clear">Limpar</button><button type="button" class="action key-wide" data-action="register">✓ Lançar no carrinho</button>
                 </div>
             </div>
             <div class="powered-user-footer">Powered by <strong>thIAguinho Soluções Digitais</strong></div>
@@ -425,6 +455,7 @@
 
     <div id="report-modal" class="modal-overlay">
         <div class="modal-content">
+            <h3 class="checkout-modal-title">✅ Conferir e finalizar compra</h3>
             <div style="margin-bottom: 15px;">
                 <label for="purchase-location" style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--cor-texto-secundario);">Local da Compra:</label>
                 <input type="text" id="purchase-location" list="purchase-location-options" placeholder="Ex: Supermercado Central" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--cor-borda); font-size: 1rem;"><datalist id="purchase-location-options"></datalist>
@@ -432,7 +463,7 @@
             <div id="report-paper"></div>
             <div class="modal-actions" style="justify-content: space-between;">
                 <div><button id="download-report-btn">Baixar</button><button id="print-report-btn">Imprimir</button></div>
-                <div><button id="close-modal-btn">Fechar</button><button id="finalize-purchase-btn" class="btn btn-success" style="padding: 8px 12px; font-size: 1rem; width: auto; height: auto;">Finalizar Compra</button></div>
+                <div><button id="close-modal-btn">Fechar</button><button id="finalize-purchase-btn" class="btn btn-success" style="padding: 8px 12px; font-size: 1rem; width: auto; height: auto;">Confirmar e finalizar</button></div>
             </div>
             <div id="finalize-state" class="finalize-state" aria-live="polite"></div>
         </div>
@@ -577,6 +608,10 @@ document.addEventListener('DOMContentLoaded', () => {
         listSort: document.getElementById('list-sort'),
         listViewSummary: document.getElementById('list-view-summary'),
         btnFinalizar: document.getElementById('btn-finalizar'),
+        checkoutCta: document.getElementById('checkout-cta'),
+        checkoutCtaBtn: document.getElementById('checkout-cta-btn'),
+        checkoutCtaSummary: document.getElementById('checkout-cta-summary'),
+        calcInstruction: document.getElementById('calc-instruction'),
         reportModal: document.getElementById('report-modal'),
         reportPaper: document.getElementById('report-paper'),
         purchaseLocationInput: document.getElementById('purchase-location'),
@@ -1123,6 +1158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  state.ui = {
                      ...state.ui,
                      ...parsed,
+                     isCalculatorCollapsed:true,
                      listView:{ ...state.ui.listView, ...(parsed.listView || {}), query:'' }
                  };
              } catch (_) { /* preferir os padrões atuais a um estado local corrompido */ }
@@ -1272,10 +1308,22 @@ document.addEventListener('DOMContentLoaded', () => {
             listEl.replaceChildren(fragment);
             updatePurchaseLocationOptions();
         },
-        total: () => { const total = state.itens.filter(i => i.status === 'comprado').reduce((acc, item) => acc + (Number(item.preco||0) * Number(item.quantidade||0)), 0); ui.headerTotal.textContent = `R$ ${total.toFixed(2)}`; },
+        total: () => {
+            const comprados=state.itens.filter(i=>i.status==='comprado');
+            const total=comprados.reduce((acc,item)=>acc+(Number(item.preco||0)*Number(item.quantidade||0)),0);
+            ui.headerTotal.textContent=`R$ ${total.toFixed(2)}`;
+            if(ui.checkoutCta){
+                ui.checkoutCta.hidden=!comprados.length;
+                if(ui.checkoutCtaSummary) ui.checkoutCtaSummary.textContent=`${comprados.length} item${comprados.length===1?'':'s'} • R$ ${total.toFixed(2)}`;
+            }
+        },
         activeItemHighlight: () => document.querySelectorAll('.item-row').forEach(row => row.classList.toggle('active', row.dataset.id == state.activeItemId)),
-        calculatorDisplay: () => ui.calcDisplay.textContent = state.calcDisplay.replace('.', ','),
-        activeItemDisplay: () => { const activeItem = state.itens.find(i => i.id == state.activeItemId); ui.activeItemDisplay.textContent = activeItem ? activeItem.nome : 'Nenhum item selecionado'; },
+        calculatorDisplay: () => ui.calcDisplay.textContent = state.calcDisplay.replace(/\./g, ','),
+        activeItemDisplay: () => {
+            const activeItem=state.itens.find(i=>i.id==state.activeItemId);
+            ui.activeItemDisplay.textContent=activeItem?activeItem.nome:'Nenhum item selecionado';
+            if(ui.calcInstruction) ui.calcInstruction.textContent=activeItem?'Digite o preço. Para quantidade, use: quantidade × preço. Depois toque em “Lançar no carrinho”.':'Selecione “Lançar preço” em um item para começar.';
+        },
         tabs: () => {
             const pending=state.itens.filter(i=>i.status==='faltando').length, bought=state.itens.filter(i=>i.status==='comprado').length, deferred=state.itens.filter(i=>i.status==='adiado').length;
             document.getElementById('tab-count-faltando').textContent=pending; document.getElementById('tab-count-comprados').textContent=bought; document.getElementById('tab-count-adiados').textContent=deferred;
@@ -1289,29 +1337,70 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const calculator = {
+        normalizeTail: () => state.calcDisplay.trimEnd(),
+        appendOperator: (symbol) => {
+            let value=calculator.normalizeTail();
+            if(!value || value==='0') return;
+            value=value.replace(/\s*[+\-×÷]\s*$/,'').trimEnd();
+            if(value) state.calcDisplay=`${value} ${symbol} `;
+        },
+        backspace: () => {
+            let value=calculator.normalizeTail();
+            if(!value || value==='0'){state.calcDisplay='0';return;}
+            if(/[+\-×÷]$/.test(value)) value=value.slice(0,-1).trimEnd();
+            else value=value.slice(0,-1).trimEnd();
+            state.calcDisplay=value||'0';
+        },
         handleInput: (key, action) => {
-            if (action === 'clear') { state.calcDisplay = '0'; }
-            else if (action === 'decimal' && !state.calcDisplay.includes('.')) { state.calcDisplay += '.'; }
-            else if (action === 'add') { calculator.register(); }
-            else if (['subtract', 'multiply', 'divide'].includes(action)) { const op = {'subtract': '-', 'multiply': '×', 'divide': '÷'}[action]; state.calcDisplay += ` ${op} `; }
-            else if (key.match(/^[0-9]$/)) { if (state.calcDisplay === '0') { state.calcDisplay = key; } else { state.calcDisplay += key; } }
+            if(action==='clear') state.calcDisplay='0';
+            else if(action==='backspace') calculator.backspace();
+            else if(action==='register'){calculator.register();return;}
+            else if(action==='decimal'){
+                const value=state.calcDisplay;
+                const current=(value.split(/[+\-×÷]/).pop()||'').trim();
+                if(!current.includes('.')) state.calcDisplay += /[+\-×÷]\s*$/.test(value) ? '0.' : '.';
+            }
+            else if(action==='plus') calculator.appendOperator('+');
+            else if(action==='subtract') calculator.appendOperator('−');
+            else if(action==='multiply') calculator.appendOperator('×');
+            else if(action==='divide') calculator.appendOperator('÷');
+            else if(/^[0-9]$/.test(key)){
+                if(state.calcDisplay==='0') state.calcDisplay=key; else state.calcDisplay+=key;
+            }
             render.calculatorDisplay();
         },
         register: () => {
-            if (!state.activeItemId) return;
-            const item = state.itens.find(i => i.id == state.activeItemId); if (!item) return;
-            const expression = state.calcDisplay.replace(/,/g, '.').replace(/×/g, '*').replace(/÷/g, '/');
-            let qty = 1; let price = 0;
-            const registerRegex = /^(\d+\.?\d*)\s*[*x]\s*(\d+\.?\d*)$/;
-            if (registerRegex.test(expression)) { const matches = expression.match(registerRegex); qty = parseFloat(matches[1]); price = parseFloat(matches[2]); }
-            else { try { price = eval(expression); } catch (e) { price = NaN; } }
-            if (isNaN(price) || price < 0) { state.calcDisplay = '0'; render.calculatorDisplay(); return; }
-            interactions.updateItem(item.id, { status: 'comprado', quantidade: qty, preco: price });
-            const currentIndex = state.itens.findIndex(i => i.id == state.activeItemId);
-            const nextItem = state.itens.find((i, index) => i.status === 'faltando' && index > currentIndex);
-            state.activeItemId = nextItem ? nextItem.id : null;
-            state.calcDisplay = '0';
-            if(state.activeItemId) { setTimeout(() => { const nextElement = document.querySelector(`[data-id='${state.activeItemId}']`); if(nextElement) nextElement.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }
+            if(!state.activeItemId){
+                window.MercadorIA?.toast?.('Selecione um item e toque em “Lançar preço” primeiro.','warning',4500);
+                state.ui.isCalculatorCollapsed=true;store.saveUI();render.calculator();
+                return;
+            }
+            const item=state.itens.find(i=>i.id==state.activeItemId); if(!item)return;
+            const expression=state.calcDisplay.replace(/,/g,'.').replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').trim();
+            if(!/^\d+(?:\.\d+)?(?:\s*[+\-*/]\s*\d+(?:\.\d+)?)*$/.test(expression)){
+                window.MercadorIA?.toast?.('Confira o valor digitado.','warning');return;
+            }
+            let qty=1,price=0;
+            const registerRegex=/^(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)$/;
+            if(registerRegex.test(expression)){const matches=expression.match(registerRegex);qty=parseFloat(matches[1]);price=parseFloat(matches[2]);}
+            else {
+                try{price=Function(`"use strict";return (${expression})`)();}catch(_){price=NaN;}
+            }
+            if(!Number.isFinite(price)||price<0||!Number.isFinite(qty)||qty<=0){window.MercadorIA?.toast?.('Confira o valor digitado.','warning');return;}
+            const currentId=state.activeItemId;
+            const currentIndex=state.itens.findIndex(i=>i.id==currentId);
+            interactions.updateItem(item.id,{status:'comprado',quantidade:qty,preco:price});
+            window.MercadorIA?.toast?.(`${item.nome} lançado no carrinho.`, 'success', 2300);
+            const nextItem=state.itens.find((i,index)=>i.status==='faltando'&&index>currentIndex);
+            state.activeItemId=nextItem?nextItem.id:null;
+            state.calcDisplay='0';
+            if(state.activeItemId){
+                render.activeItemHighlight();render.activeItemDisplay();render.calculatorDisplay();
+                setTimeout(()=>{const nextElement=document.querySelector(`[data-id='${state.activeItemId}']`);if(nextElement)nextElement.scrollIntoView({behavior:'smooth',block:'center'});},250);
+            } else {
+                state.ui.isCalculatorCollapsed=true;store.saveUI();render.calculator();render.activeItemDisplay();render.calculatorDisplay();
+                window.MercadorIA?.toast?.('Itens lançados. Quando terminar, toque em “Finalizar compra”.','info',5200);
+            }
         }
     };
 
@@ -1460,7 +1549,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ...adiados.map((i)=>`a:${i.id}`).sort()
     ].join('|'));
     const setFinalizeState = (message,type='') => { if(!ui.finalizeState)return;ui.finalizeState.className=`finalize-state${type?` ${type}`:''}`;ui.finalizeState.textContent=message||''; };
-    const setFinalizeBusy = (busy) => { state.finalizeInFlight=Boolean(busy);ui.finalizePurchaseBtn.disabled=Boolean(busy);ui.closeModalBtn.disabled=Boolean(busy);ui.finalizePurchaseBtn.textContent=busy?'Salvando…':'Finalizar Compra'; };
+    const setFinalizeBusy = (busy) => { state.finalizeInFlight=Boolean(busy);ui.finalizePurchaseBtn.disabled=Boolean(busy);ui.closeModalBtn.disabled=Boolean(busy);ui.finalizePurchaseBtn.textContent=busy?'Salvando…':'Confirmar e finalizar'; };
     const reconcilePendingFinalization = async () => {
         const pending=readPendingFinalize();if(!pending?.reportKey||!reportsRef)return;
         if(Date.now()-Number(pending.startedAt||0)>24*60*60*1000){clearPendingFinalize();return;}
@@ -1556,6 +1645,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         switchTab: (tabName) => {
             if (!tabName || tabName === state.currentTab) return;
+            if(tabName!=='faltando'){state.activeItemId=null;state.ui.isCalculatorCollapsed=true;store.saveUI();render.calculator();render.activeItemDisplay();}
             const oldTab=state.currentTab; const oldContainer=document.getElementById(`lista-${oldTab}-container`);
             if(oldContainer) state.tabScroll[oldTab]=oldContainer.scrollTop||window.scrollY||0;
             state.currentTab = tabName;
@@ -1566,10 +1656,10 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         toggleCalculator: () => { state.ui.isCalculatorCollapsed = !state.ui.isCalculatorCollapsed; store.saveUI(); render.calculator(); },
         openReportModal: () => {
-            const faltando = state.itens.filter(i => i.status === 'faltando');
-            if (faltando.length > 0 && !confirm(`Ainda existem ${faltando.length} item${faltando.length===1?'':'s'} em A Comprar. Finalizar agora vai mantê-los para a próxima compra. Deseja continuar?`)) return;
-            const comprados = state.itens.filter(i => i.status === 'comprado');
-            if (!comprados.length) { window.MercadorIA?.toast?.('Nenhum item foi lançado como comprado ainda.', 'warning') || alert('Nenhum item foi comprado ainda.'); return; }
+            const comprados=state.itens.filter(i=>i.status==='comprado');
+            if(!comprados.length){window.MercadorIA?.toast?.('Primeiro lance pelo menos um item no carrinho.','warning',4500)||alert('Primeiro lance pelo menos um item no carrinho.');return;}
+            const faltando=state.itens.filter(i=>i.status==='faltando');
+            if(faltando.length>0&&!confirm(`Ainda existem ${faltando.length} item${faltando.length===1?'':'s'} em A Comprar. Eles ficarão guardados para a próxima compra. Deseja finalizar os ${comprados.length} item${comprados.length===1?'':'s'} do carrinho agora?`))return;
             const total = comprados.reduce((acc,i)=>acc+(Number(i.preco)*Number(i.quantidade)),0);
             const previewItems = comprados.map(i=>({nome:i.nome,quantidade:Number(i.quantidade),preco:Number(i.preco)}));
             ui.reportPaper.textContent = buildReportText({location:'Não informado',items:previewItems,total,createdAt:new Date().toISOString(),note:''});
@@ -1669,6 +1759,12 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.smartSuggestions?.addEventListener('click',(e)=>{const btn=e.target.closest('[data-smart-add]');if(btn)interactions.addItemByName(decodeURIComponent(btn.dataset.smartAdd));});
     document.addEventListener('click',(e)=>{if(!e.target.closest('#form-adicionar-item,#smart-suggestions') && ui.smartSuggestions)ui.smartSuggestions.hidden=true;});
     ui.keypad.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') calculator.handleInput(e.target.textContent, e.target.dataset.action); });
+    document.addEventListener('keydown',(e)=>{
+        if(state.ui.isCalculatorCollapsed||document.activeElement?.matches('input,textarea,select'))return;
+        const map={Enter:'register',Backspace:'backspace',Escape:'clear','+':'plus','-':'subtract','*':'multiply','/':'divide',',':'decimal','.':'decimal'};
+        if(/^[0-9]$/.test(e.key)){e.preventDefault();calculator.handleInput(e.key);return;}
+        if(map[e.key]){e.preventDefault();calculator.handleInput(e.key,map[e.key]);}
+    });
     ui.tabs.addEventListener('click', e => { const btn=e.target.closest('.tab-btn'); if(btn) interactions.handleTabClick(btn.dataset.tab); });
     ui.listSearch?.addEventListener('input', (event) => {
         state.ui.listView.query = event.target.value || '';
@@ -1689,6 +1785,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('lista-relatorios').addEventListener('click', e => { const importBtn=e.target.closest('[data-open-receipt-import]'); if(importBtn){openReceiptImport();return;} const moreBtn=e.target.closest('[data-load-more-reports]'); if(moreBtn){loadMoreReports();return;} const deleteBtn=e.target.closest('[data-delete-report]'); if(deleteBtn){interactions.deleteReport(deleteBtn.dataset.deleteReport);return;} const editBtn=e.target.closest('[data-edit-report]'); if(editBtn){interactions.openReportEdit(editBtn.dataset.editReport);return;} const reportRow=e.target.closest('.report-item'); if(reportRow)interactions.showReport(reportRow.dataset.id); });
     ui.appContainer.addEventListener('click', e => { if(e.target.closest('.item-offer-action,.offer-sheet-overlay'))return; const row=e.target.closest('.item-row'); if(!row)return; const id=row.dataset.id; const item=state.itens.find(i=>i.id===id); if(!item)return; if(e.target.closest('[data-item-delete]')){interactions.deleteItem(id);return;} if(e.target.closest('[data-item-defer]')){interactions.updateItem(id,{status:'adiado'});if(state.activeItemId===id)state.activeItemId=null;return;} if(e.target.closest('[data-item-restore]')){interactions.updateItem(id,{status:'faltando',preco:0,quantidade:1});return;} if(e.target.closest('[data-item-select]')){interactions.selectItem(id);return;} if(item.status==='faltando' && e.target.closest('.item-details'))interactions.selectItem(id); });
     ui.btnFinalizar.addEventListener('click', interactions.openReportModal);
+    ui.checkoutCtaBtn?.addEventListener('click', interactions.openReportModal);
     ui.closeModalBtn.addEventListener('click', () => {if(!state.finalizeInFlight){setFinalizeState('');ui.reportModal.classList.remove('visible');}});
     ui.closeViewModalBtn.addEventListener('click', () => ui.reportViewModal.classList.remove('visible'));
     ui.editViewReportBtn.addEventListener('click',()=>{if(state.selectedReportId){ui.reportViewModal.classList.remove('visible');interactions.openReportEdit(state.selectedReportId);}});
