@@ -1,7 +1,7 @@
 {
   "name": "Mercador IA",
-  "version": "3.5.0",
-  "build": "mercador-ia-v3.5-checkout-usability",
+  "version": "3.6.0",
+  "build": "mercador-ia-v3.6-compact-calculator",
   "date": "2026-08-31",
   "documentEngine": "7.1.0-professional-multimodal-consensus",
   "knowledgeSchema": "mercador.encarte.knowledge.v7"

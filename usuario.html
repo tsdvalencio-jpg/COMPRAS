@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Mercador IA — Sua Compra</title>
-    <!-- Build consumidor: V3.5 · lista guiada + calculadora corrigida + finalização evidente/idempotente -->
+    <!-- Build consumidor: V3.6 · lista guiada + calculadora compacta + finalização evidente/idempotente -->
     <meta name="theme-color" content="#007aff"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="./manifest.webmanifest">
@@ -336,6 +336,37 @@
         /* Mercador IA V2.8 — troca de abas instantânea */
         .tab-btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
         .list-container{contain:layout style paint}
+
+        /* Mercador IA V3.6 — caixa compacta: cabe inteira sem rolagem */
+        .calculator-footer{padding:0 8px max(6px,env(safe-area-inset-bottom));}
+        .calculator-body{max-height:260px!important;padding-top:7px!important;overflow:hidden!important;}
+        .calculator-footer.collapsed .calculator-body{max-height:0!important;padding-top:0!important;}
+        .calculator-display-wrapper{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;min-height:48px;margin-bottom:5px!important;padding:4px 8px!important;border-radius:8px!important;}
+        #active-item-display{height:auto!important;min-width:0;font-size:.72rem!important;text-align:left!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-bottom:3px;}
+        #calc-display{font-size:clamp(1.7rem,7vw,2.15rem)!important;line-height:1!important;min-width:82px;}
+        .calc-instruction{display:none!important;}
+        .keypad{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:5px!important;}
+        .keypad button{height:clamp(36px,5.2dvh,42px)!important;min-width:0!important;border-radius:7px!important;font-size:1.04rem!important;padding:0 3px!important;touch-action:manipulation;}
+        .keypad .calc-clear{font-size:.66rem!important;line-height:1.05!important;}
+        .keypad .calc-register{grid-column:3 / span 3!important;font-size:.82rem!important;white-space:nowrap!important;}
+        .calculator-footer:not(.collapsed) .powered-user-footer{display:none;}
+        @media(max-height:650px){
+            .calculator-body{max-height:218px!important;padding-top:5px!important;}
+            .calculator-display-wrapper{min-height:40px;margin-bottom:4px!important;padding:3px 7px!important;}
+            #active-item-display{font-size:.67rem!important;padding-bottom:2px;}
+            #calc-display{font-size:1.62rem!important;}
+            .keypad{gap:4px!important;}
+            .keypad button{height:34px!important;font-size:.96rem!important;}
+            .keypad .calc-register{font-size:.76rem!important;}
+        }
+        @media(max-width:360px){
+            .calculator-footer{padding-left:6px;padding-right:6px;}
+            .calculator-display-wrapper{grid-template-columns:minmax(0,1fr) minmax(70px,auto);}
+            .keypad{gap:4px!important;}
+            .keypad button{font-size:.98rem!important;}
+            .keypad .calc-clear{font-size:.61rem!important;}
+            .keypad .calc-register{font-size:.74rem!important;}
+        }
 </style>
 </head>
 <body>
@@ -440,13 +471,11 @@
                     <div id="active-item-display">Nenhum item selecionado</div>
                     <div id="calc-display">0</div>
                 </div>
-                <div id="calc-instruction" class="calc-instruction">Selecione “Lançar preço” em um item para começar.</div>
                 <div class="keypad" aria-label="Calculadora de preço">
-                    <button type="button">7</button><button type="button">8</button><button type="button">9</button><button type="button" class="operator" data-action="divide">÷</button>
-                    <button type="button">4</button><button type="button">5</button><button type="button">6</button><button type="button" class="operator" data-action="multiply">×</button>
-                    <button type="button">1</button><button type="button">2</button><button type="button">3</button><button type="button" class="operator" data-action="subtract">−</button>
-                    <button type="button">0</button><button type="button" data-action="decimal">,</button><button type="button" class="backspace" data-action="backspace" aria-label="Apagar último dígito" title="Apagar último dígito">⌫</button><button type="button" class="operator" data-action="plus">+</button>
-                    <button type="button" class="clear key-wide" data-action="clear">Limpar</button><button type="button" class="action key-wide" data-action="register">✓ Lançar no carrinho</button>
+                    <button type="button">7</button><button type="button">8</button><button type="button">9</button><button type="button" class="operator" data-action="divide">÷</button><button type="button" class="backspace" data-action="backspace" aria-label="Apagar último dígito" title="Apagar último dígito">⌫</button>
+                    <button type="button">4</button><button type="button">5</button><button type="button">6</button><button type="button" class="operator" data-action="multiply">×</button><button type="button" class="clear calc-clear" data-action="clear">Limpar</button>
+                    <button type="button">1</button><button type="button">2</button><button type="button">3</button><button type="button" class="operator" data-action="subtract">−</button><button type="button" class="operator" data-action="plus">+</button>
+                    <button type="button">0</button><button type="button" data-action="decimal">,</button><button type="button" class="action calc-register" data-action="register">✓ Lançar no carrinho</button>
                 </div>
             </div>
             <div class="powered-user-footer">Powered by <strong>thIAguinho Soluções Digitais</strong></div>
@@ -1321,8 +1350,7 @@ document.addEventListener('DOMContentLoaded', () => {
         calculatorDisplay: () => ui.calcDisplay.textContent = state.calcDisplay.replace(/\./g, ','),
         activeItemDisplay: () => {
             const activeItem=state.itens.find(i=>i.id==state.activeItemId);
-            ui.activeItemDisplay.textContent=activeItem?activeItem.nome:'Nenhum item selecionado';
-            if(ui.calcInstruction) ui.calcInstruction.textContent=activeItem?'Digite o preço. Para quantidade, use: quantidade × preço. Depois toque em “Lançar no carrinho”.':'Selecione “Lançar preço” em um item para começar.';
+            ui.activeItemDisplay.textContent=activeItem?activeItem.nome:'Selecione um item';
         },
         tabs: () => {
             const pending=state.itens.filter(i=>i.status==='faltando').length, bought=state.itens.filter(i=>i.status==='comprado').length, deferred=state.itens.filter(i=>i.status==='adiado').length;
