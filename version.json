@@ -1,8 +1,8 @@
 {
   "name": "Mercador IA",
-  "version": "3.6.0",
-  "build": "mercador-ia-v3.6-compact-calculator",
+  "version": "3.7.0",
+  "build": "mercador-ia-v3.7-large-pdf-auto-pages",
   "date": "2026-08-31",
-  "documentEngine": "7.1.0-professional-multimodal-consensus",
+  "documentEngine": "7.2.0-professional-multimodal-paged-pdf",
   "knowledgeSchema": "mercador.encarte.knowledge.v7"
 }

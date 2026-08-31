@@ -552,8 +552,10 @@
     box.className = 'pdf-source-diagnostic';
     if (files.length) {
       const types = [...new Set(files.map((f) => /^image\//.test(f.type) ? 'imagem' : (f.type === 'application/pdf' || /\.pdf$/i.test(f.name) ? 'PDF' : 'texto')))];
+      const singlePdf = files.length === 1 && (files[0].type === 'application/pdf' || /\.pdf$/i.test(files[0].name));
+      const largePdf = singlePdf && Number(files[0].size || 0) > 11.5 * 1024 * 1024;
       box.classList.add('ok');
-      box.innerHTML = `<strong>${files.length} arquivo${files.length===1?'':'s'} pronto${files.length===1?'':'s'} para leitura</strong><span>${M.escapeHtml(types.join(' + '))}${url ? ` · origem: ${M.escapeHtml(url)}` : ''}. A fonte visual será a autoridade para produto e preço.</span>`;
+      box.innerHTML = `<strong>${files.length} arquivo${files.length===1?'':'s'} pronto${files.length===1?'':'s'} para leitura</strong><span>${M.escapeHtml(types.join(' + '))}${url ? ` · origem: ${M.escapeHtml(url)}` : ''}. ${largePdf ? 'PDF grande detectado: ele será dividido e otimizado automaticamente página por página. Não precisa compactar. ' : ''}A fonte visual será a autoridade para produto e preço.</span>`;
       return;
     }
     if (text) {
@@ -828,6 +830,10 @@
           'ai-professional-a':'1ª leitura multimodal da fonte',
           'ai-professional-b':'2ª leitura independente',
           'ai-professional-c':'auditoria final olhando novamente a fonte',
+          'ai-pdf-page-a':`página ${progress.pageNumber}: 1ª leitura`,
+          'ai-pdf-page-b':`página ${progress.pageNumber}: 2ª leitura independente`,
+          'ai-pdf-page-c':`página ${progress.pageNumber}: auditoria final`,
+          'pdf-auto-render':`preparando automaticamente a página ${progress.pageNumber}`,
           'ai-professional-complete':'conciliação concluída'
         };
         if (aiStages[mode]) {
