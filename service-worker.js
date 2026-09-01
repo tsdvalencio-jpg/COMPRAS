@@ -1,4 +1,4 @@
-const CACHE = 'mercador-ia-shell-v3.10.0-card-proof';
+const CACHE = 'mercador-ia-shell-v3.11.0-source-proof';
 
 // Shell enxuto do consumidor. O painel Admin/PDF e o Card Resolver são carregados
 // somente quando um administrador realmente os acessa — não pesam no PWA do usuário.

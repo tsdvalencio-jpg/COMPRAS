@@ -8,7 +8,7 @@
   const previous = window.MercadorPDFImporter || {};
   if (previous.__professionalConsensusEngineInstalled) return;
 
-  const ENGINE_VERSION = '7.5.0-card-proof-certifier';
+  const ENGINE_VERSION = '7.6.1-source-proof-club-reconcile';
   const KNOWLEDGE_SCHEMA_VERSION = 'mercador.encarte.knowledge.v7';
   const FIREBASE_SDK_VERSION = '12.16.0';
   const PRIMARY_MODEL = 'gemini-3.7-flash';
@@ -1040,8 +1040,507 @@ REGRAS ABSOLUTAS:
     'image_text_single_pass','image_grid_incomplete','invalid_source_geometry','source_geometry_conflict'
   ]);
 
+  // Risks that a direct source-region proof is allowed to clear for a textual PDF.
+  // These are association/description risks produced by broader heuristic passes; critical
+  // validity, numeric and unresolved OCR conflicts remain fail-closed.
+  const SOURCE_PROOF_RECOVERABLE_RISKS = new Set([
+    'association_disagreement','too_many_prices','ambiguous_price_kind','header_contamination',
+    'price_inside_product_text','price_cluster_disagreement','ocr_price_without_currency',
+    'ocr_low_price_confidence','ocr_price_scale_suspicious','ocr_low_description_quality',
+    'ocr_block_ownership_weak','knowledge_legacy_description_conflict','single_association_pass',
+    'ocr_incomplete_description'
+  ]);
+
+  const SOURCE_PROOF_NEVER_RESOLVE = new Set([
+    'missing_validity','invalid_price','invalid_previous_price','ocr_price_conflict',
+    'ocr_validity_inferred','image_price_conflict','image_text_single_pass','image_grid_incomplete',
+    'invalid_source_geometry','source_geometry_conflict','text_source_no_geometry','text_price_without_currency'
+  ]);
+
+  const SOURCE_META_RE = /\b(?:PRE[CÇ]OS?\s+V[ÁA]LID|OFERTAS?\s+ESPECIAIS?|ENTRE\s+NA\s+NOSSA|COMUNIDADE\s+DO|WHATSAPP|RECEBA|ANTES\s+DE|TODO\s+MUNDO|NESTA\s+EMBALAGEM|UNIDADE\s+SAI\s+POR|CLIENTE\s+(?:CLUBE|MAIS)|CLUBE\s+(?:MAIS|COMPRE)|PAGA|LIMITE\s+\d+|POR\s+CLIENTE|ENQUANTO\s+(?:HOUVER|DURAREM)|HOR[ÁA]RIO\s+DE\s+ATENDIMENTO|SEGUNDA\s+A\s+S[ÁA]BADO|DOMINGO|FERIADOS?|BAIXE\s+O\s+APP|APP\s+STORE|GOOGLE\s+PLAY|QR\s*CODE)\b/i;
+  const SOURCE_MONEY_RE = /(?:R\s*\$|\bR\$?)\s*\d{1,4}(?:[.,]\d{2})?/i;
+  const SOURCE_ONLY_UNIT_RE = /^(?:R\s*\$|CADA|KG|G|GR|ML|L|LT|LTS|UN|UND|UNID(?:ADE)?S?|PCT|PACOTE|PACK|BDJ|BANDEJA|CX|CAIXA|FR|FARDO|FD|DZ|DUZIA|%|\d+|[,.]\d{2})$/i;
+
+  function sourceBox(box) {
+    if (!box || typeof box !== 'object') return null;
+    const x = Number(box.x ?? box.x0);
+    const y = Number(box.y ?? box.y0);
+    const width = Number(box.width ?? (Number(box.x1) - Number(box.x0)));
+    const height = Number(box.height ?? (Number(box.y1) - Number(box.y0)));
+    if (![x,y,width,height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
+    return { x, y, width, height, x1:x + width, y1:y + height };
+  }
+
+  function sourceCenter(box) {
+    const b = sourceBox(box);
+    return b ? { x:b.x + b.width / 2, y:b.y + b.height / 2 } : null;
+  }
+
+  function sourceUnion(boxes) {
+    const list = (boxes || []).map(sourceBox).filter(Boolean);
+    if (!list.length) return null;
+    const x = Math.min(...list.map((b) => b.x));
+    const y = Math.min(...list.map((b) => b.y));
+    const x1 = Math.max(...list.map((b) => b.x1));
+    const y1 = Math.max(...list.map((b) => b.y1));
+    return { x, y, width:x1-x, height:y1-y, x1, y1 };
+  }
+
+  function sourceExpand(box, mx = 0, my = mx) {
+    const b = sourceBox(box);
+    if (!b) return null;
+    return { x:b.x-mx, y:b.y-my, width:b.width+mx*2, height:b.height+my*2, x1:b.x1+mx, y1:b.y1+my };
+  }
+
+  function sourceContainsCenter(container, item, mx = 0, my = mx) {
+    const c = sourceCenter(item), b = sourceExpand(container, mx, my);
+    return Boolean(c && b && c.x >= b.x && c.x <= b.x1 && c.y >= b.y && c.y <= b.y1);
+  }
+
+  function sourceIntersectionRatio(a, b) {
+    const A = sourceBox(a), B = sourceBox(b);
+    if (!A || !B) return 0;
+    const w = Math.max(0, Math.min(A.x1,B.x1)-Math.max(A.x,B.x));
+    const h = Math.max(0, Math.min(A.y1,B.y1)-Math.max(A.y,B.y));
+    return (w*h) / Math.max(1, Math.min(A.width*A.height, B.width*B.height));
+  }
+
+  function sourceRangeDistance(value, start, end) {
+    if (value < start) return start - value;
+    if (value > end) return value - end;
+    return 0;
+  }
+
+  function sourceScaleBox(box, scale) {
+    const b = sourceBox(box);
+    if (!b) return null;
+    return { x:b.x*scale, y:b.y*scale, width:b.width*scale, height:b.height*scale, x1:b.x1*scale, y1:b.y1*scale };
+  }
+
+  function sourceUnscaleBox(box, scale) {
+    const b = sourceBox(box);
+    if (!b || !(scale > 0)) return null;
+    return { x:b.x/scale, y:b.y/scale, width:b.width/scale, height:b.height/scale };
+  }
+
+  function sourcePage(result, pageNumber) {
+    const pages = result?.knowledgeDocument?.pages;
+    if (!Array.isArray(pages)) return null;
+    return pages.find((page) => Number(page?.pageNumber || 0) === Number(pageNumber || 0)) || null;
+  }
+
+  function sourcePriceValue(price) {
+    const value = Number(price?.value ?? price?.price);
+    return Number.isFinite(value) ? Number(value.toFixed(2)) : null;
+  }
+
+  function sourcePriceConfidence(price) {
+    const value = Number(price?.confidence || 0);
+    if (!Number.isFinite(value)) return 0;
+    return value > 1 ? clamp(value / 100, 0, 1) : clamp(value, 0, 1);
+  }
+
+  function sourcePriceExplicit(price) {
+    return price?.currencyExplicit === true || /native/i.test(String(price?.pattern || '')) || Number(price?.passes || 0) >= 2;
+  }
+
+  function sourceNormalizeSaleUnit(value) {
+    const unit = fold(value).replace(/[^A-Z]/g, '');
+    if (unit === 'KG') return 'kg';
+    if (unit === 'CADA') return 'cada';
+    if (unit === 'BDJ' || unit === 'BANDEJA') return 'bandeja';
+    if (unit === 'UN' || unit === 'UND' || unit === 'UNID' || unit === 'UNIDADE') return 'unidade';
+    if (unit === 'PCT' || unit === 'PACOTE') return 'pacote';
+    if (unit === 'PACK') return 'pack';
+    return '';
+  }
+
+  function sourceSaleUnitAroundPrice(page, anchor, priceFacts) {
+    const anchorBox = sourceBox(anchor?.bbox || anchor?.box || anchor);
+    if (!anchorBox) return '';
+    const competitors = (priceFacts || []).filter((p) => p?.raw && p?.box);
+    const unitWords = (page?.words || []).map((word) => ({
+      unit:sourceNormalizeSaleUnit(word?.text),
+      box:sourceWordBox(word),
+      raw:word
+    })).filter((x) => x.unit && x.box);
+    let best = null;
+    unitWords.forEach((item) => {
+      const scored = competitors.map((price) => ({ price, cost:sourcePriceOwnerCost(item.box, price.box) })).sort((a,b) => a.cost-b.cost);
+      if (!scored.length || scored[0].price.raw !== anchor) return;
+      if (scored[0].cost > 220) return;
+      if (scored[1] && scored[1].cost-scored[0].cost < Math.max(8, scored[0].cost*.12)) return;
+      if (!best || scored[0].cost < best.cost) best = { unit:item.unit, cost:scored[0].cost };
+    });
+    return best?.unit || '';
+  }
+
+  function sourcePageObservedExtent(page) {
+    const boxes = [];
+    [...(page?.words || []), ...(page?.lines || []), ...(page?.prices || [])].forEach((item) => {
+      const b = sourceBox(item?.bbox || item?.box || item);
+      if (b) boxes.push(b);
+    });
+    return sourceUnion(boxes);
+  }
+
+  function sourceScaleCandidates(page) {
+    const values = [1, 2.25];
+    const observed = sourcePageObservedExtent(page);
+    const baseW = Number(page?.width || 0), baseH = Number(page?.height || 0);
+    if (observed && baseW > 0 && baseH > 0) {
+      const rx = observed.x1 / baseW, ry = observed.y1 / baseH;
+      const approx = [rx, ry].filter((v) => Number.isFinite(v) && v >= .70 && v <= 4.5);
+      if (approx.length) values.push(approx.reduce((a,b) => a+b, 0) / approx.length);
+    }
+    return unique(values.map((v) => Number(v.toFixed(4)))).filter((v) => v > .5 && v < 5);
+  }
+
+  function sourceAnchorChoice(page, candidate, evidenceBox) {
+    const value = roundPrice(candidate?.price);
+    if (!validPrice(value) || !evidenceBox) return null;
+    const matches = (page?.prices || []).filter((price) => {
+      const pv = sourcePriceValue(price);
+      return pv != null && Math.abs(pv - value) < .011 && sourceBox(price?.bbox || price?.box);
+    });
+    if (!matches.length) return null;
+    let best = null;
+    sourceScaleCandidates(page).forEach((scale) => {
+      const scaled = sourceScaleBox(evidenceBox, scale);
+      if (!scaled) return;
+      const marginX = Math.max(6, scaled.width * .10), marginY = Math.max(6, scaled.height * .10);
+      matches.forEach((price) => {
+        const pb = sourceBox(price?.bbox || price?.box), pc = sourceCenter(pb);
+        if (!pb || !pc) return;
+        const inside = sourceContainsCenter(scaled, pb, marginX, marginY);
+        const dx = sourceRangeDistance(pc.x, scaled.x-marginX, scaled.x1+marginX);
+        const dy = sourceRangeDistance(pc.y, scaled.y-marginY, scaled.y1+marginY);
+        const cost = (inside ? 0 : 120) + dx + dy * 1.25;
+        if (!best || cost < best.cost) best = { price, box:pb, scale, scaledEvidenceBox:scaled, cost, inside };
+      });
+    });
+    return best && best.cost <= 145 ? best : null;
+  }
+
+  function sourceWordBox(word) { return sourceBox(word?.bbox || word?.box || word); }
+
+  function sourceWordIsMetadata(text) {
+    const value = clean(text);
+    if (!value || SOURCE_MONEY_RE.test(value) || SOURCE_ONLY_UNIT_RE.test(value)) return true;
+    if (INSTITUTIONAL_RE.test(value) || SOURCE_META_RE.test(value)) return true;
+    return false;
+  }
+
+  function sourcePriceOwnerCost(wordBox, priceBox) {
+    const w = sourceBox(wordBox), p = sourceBox(priceBox);
+    if (!w || !p) return Infinity;
+    const pc = sourceCenter(p), wc = sourceCenter(w);
+    const horizontal = sourceRangeDistance(pc.x, w.x-8, w.x1+8);
+    const above = p.y - w.y1;
+    const below = w.y - p.y1;
+    let vertical;
+    if (above >= -10) vertical = Math.max(0, above) * .68;
+    else if (below >= 0) vertical = below * 1.75 + 34;
+    else vertical = Math.abs(wc.y-pc.y) * .46;
+    return horizontal * 1.35 + vertical + Math.abs(wc.x-pc.x) * .055;
+  }
+
+  function sourceDedupProductText(text) {
+    const words = clean(text).split(/\s+/).filter(Boolean);
+    const out = [], seenStrong = new Set();
+    words.forEach((word) => {
+      const f = fold(word).replace(/[^A-Z0-9]/g, '');
+      const prev = out.length ? fold(out[out.length-1]).replace(/[^A-Z0-9]/g, '') : '';
+      if (f && f === prev) return;
+      // Repetições não adjacentes são comuns na camada nativa do PDF (JOÃO JOÃO,
+      // 100% 100%, C/58F ... C/58F). Removemos apenas tokens fortes; palavras curtas
+      // continuam preservadas para não destruir nomes legítimos como "Trá Lá Lá".
+      if (f.length >= 3 && seenStrong.has(f)) return;
+      if (f.length >= 3) seenStrong.add(f);
+      out.push(word);
+    });
+    return clean(out.join(' '))
+      .replace(/\(\s*LIMITE[^)]{0,40}\)/gi, ' ')
+      .replace(/^[|:;,\.\-–—]+|[|:;,\.\-–—]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function sourceGroupOwnedWords(words) {
+    const list = (words || []).filter((x) => x?.box && clean(x.text));
+    if (!list.length) return [];
+    const heights = list.map((x) => x.box.height).filter((x) => x > 0).sort((a,b) => a-b);
+    const median = heights.length ? heights[Math.floor(heights.length/2)] : 12;
+    const tolerance = Math.max(4, median * .72);
+    const rows = [];
+    [...list].sort((a,b) => sourceCenter(a.box).y-sourceCenter(b.box).y || a.box.x-b.box.x).forEach((item) => {
+      const cy = sourceCenter(item.box).y;
+      let row = rows.find((r) => Math.abs(r.cy-cy) <= tolerance);
+      if (!row) { row = { cy, items:[] }; rows.push(row); }
+      row.items.push(item);
+      row.cy = row.items.reduce((sum,x) => sum+sourceCenter(x.box).y, 0) / row.items.length;
+    });
+    return rows.sort((a,b) => a.cy-b.cy).flatMap((row) => {
+      const ordered = row.items.sort((a,b) => a.box.x-b.box.x);
+      // Mesma coordenada Y não significa mesmo produto: tabloides usam várias colunas
+      // lado a lado. Quebramos a linha quando existe um vazio horizontal grande para
+      // evitar juntar, por exemplo, HEINEKEN com IMPÉRIO no card vizinho.
+      const segments = []; let current = [];
+      const maxGap = Math.max(55, median * 4.2);
+      ordered.forEach((item) => {
+        if (current.length) {
+          const prev = current[current.length-1].box;
+          const gap = item.box.x - (prev.x + prev.width);
+          if (gap > maxGap) { segments.push(current); current = []; }
+        }
+        current.push(item);
+      });
+      if (current.length) segments.push(current);
+      return segments.map((items) => ({
+        text:sourceDedupProductText(items.map((x) => x.text).join(' ')),
+        box:sourceUnion(items.map((x) => x.box)),
+        items
+      }));
+    }).filter((row) => row.text && !sourceWordIsMetadata(row.text));
+  }
+
+  function sourceExtractPackage(text) {
+    const value = clean(text);
+    const matches = [...value.matchAll(/\b(?:\d+(?:[.,]\d+)?\s*(?:KG|G|GR|ML|L|LT|LTS|CM|MM)|(?:PCT|PACK|PACOTE|CX|CAIXA|BDJ|BANDEJA)\s*C?\/?\s*\d+|C\/?\s*\d+\s*(?:UN|UND|UNIDADES?)?)\b/gi)];
+    return matches.length ? clean(matches[matches.length-1][0]).slice(0,100) : '';
+  }
+
+  function sourceRecoverNameAroundPrice(page, anchor, priceFacts, candidate = {}) {
+    const anchorBox = sourceBox(anchor?.bbox || anchor?.box || anchor);
+    if (!anchorBox) return { text:'', rows:[], box:null };
+    const window = {
+      x:anchorBox.x - Math.max(170, anchorBox.width * 1.55),
+      y:anchorBox.y - Math.max(95, anchorBox.height * 1.30),
+      width:anchorBox.width + Math.max(340, anchorBox.width * 3.10),
+      height:anchorBox.height + Math.max(190, anchorBox.height * 2.60)
+    };
+    window.x1 = window.x + window.width; window.y1 = window.y + window.height;
+    // O preço concorrente pode estar logo fora da janela de palavras. Incluí-lo na
+    // disputa é essencial para não atribuir ao preço atual o nome do card vizinho.
+    const priceCompetitionWindow = sourceExpand(window, Math.max(120, anchorBox.width*1.25), Math.max(65, anchorBox.height*.85));
+    const localPrices = (priceFacts || []).filter((price) => sourceContainsCenter(priceCompetitionWindow, price.box, 0, 0));
+    const anchorRaw = anchor;
+    const words = (page?.words || []).map((word) => ({ text:clean(word?.text), box:sourceWordBox(word), raw:word }))
+      .filter((word) => word.text && word.box && sourceContainsCenter(window, word.box, 0, 0))
+      .filter((word) => !/^(?:R\$?|\$|\d{1,4}|[,.]\d{1,2})$/i.test(word.text))
+      .filter((word) => !sourceWordIsMetadata(word.text));
+    const owned = [];
+    words.forEach((word) => {
+      const scored = localPrices.map((price) => ({ price, cost:sourcePriceOwnerCost(word.box, price.box) })).sort((a,b) => a.cost-b.cost);
+      if (!scored.length || scored[0].price.raw !== anchorRaw) return;
+      if (scored[1] && scored[1].cost - scored[0].cost < Math.max(6, scored[0].cost * .12)) return;
+      if (scored[0].cost > 210) return;
+      owned.push(word);
+    });
+    const rows = sourceGroupOwnedWords(owned).filter((row) => {
+      const text = clean(row.text);
+      if (!text || SOURCE_META_RE.test(text) || INSTITUTIONAL_RE.test(text) || SOURCE_MONEY_RE.test(text)) return false;
+      if (/^(?:LIMITE|POR CLIENTE|CADA|KG|CLIENTE|PAGA)$/i.test(text)) return false;
+      return true;
+    });
+    const text = sourceDedupProductText(rows.map((row) => row.text).join(' ')).slice(0,180);
+    return { text, rows, box:sourceUnion(rows.map((row) => row.box)) };
+  }
+
+  function sourceProductQuality(name, candidate = {}) {
+    const value = cleanProductForCertification(name);
+    const list = value.split(/\s+/).filter(Boolean);
+    const alphas = (value.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+    if (list.length < 2 || list.length > 16 || alphas < 4) return false;
+    if (SOURCE_MONEY_RE.test(value) || /(?:^|\s)[,.]\d{2}(?:\s|$)/.test(value) || INSTITUTIONAL_RE.test(value) || SOURCE_META_RE.test(value)) return false;
+    const explicitPackage = sourceExtractPackage(value) || candidate?.packageText || '';
+    const explicitUnit = /\b(?:KG|CADA|UNIDADE|BDJ|BANDEJA)\b/i.test(value) || /\b(?:KG|CADA|UNIDADE|BDJ|BANDEJA)\b/i.test(clean(candidate?.productName || '')) || /\b(?:KG|CADA|UNIDADE|BDJ|BANDEJA)\b/i.test(clean(candidate?.conditions || ''));
+    // Não publicar bebida genérica sem marca. Ex.: "CERVEJA LAGER 350ML" pode apontar
+    // para várias marcas diferentes no mesmo encarte, mesmo que o preço esteja correto.
+    if (/\bCERVEJA\b/i.test(value) && /\b(?:LAGER|PILSEN)\b/i.test(value)) {
+      const beerGeneric = new Set(['CERVEJA','LAGER','PILSEN','LATA','LONG','NECK','LN','PACK','ZERO']);
+      const beerMeaningful = tokens(value).filter((t) => !beerGeneric.has(t) && !/^\d/.test(t) && !/^(?:ML|L|LT|LTS|UN|UND)$/.test(t));
+      if (!beerMeaningful.length) return false;
+    }
+    const identity = productIdentityProof(value, { ...candidate, packageText: explicitPackage, conditions: explicitUnit ? `${clean(candidate?.conditions || '')} KG` : candidate?.conditions });
+    if (identity.safe === true) return true;
+    // Hortifruti costuma ter rótulo curto (ex.: MAMÃO PAPAYA, PERA PARKS) e unidade "KG"
+    // impressa junto ao preço, não no nome. Só flexibilizamos aqui porque a prova de fonte já
+    // exige preço explícito único dentro da mesma região geométrica.
+    const produceHead = /^(?:MAMAO|MAMÃO|PERA|BANANA|CEBOLA|MELANCIA|ABOBORA|ABÓBORA|BATATA|LIMAO|LIMÃO|LARANJA|MANGA|MARACUJA|MARACUJÁ|TOMATE|CENOURA|BETERRABA|ABACAXI|MELAO|MELÃO)\b/i.test(value);
+    const meaningful = list.filter((x) => /[A-Za-zÀ-ÿ]{3,}/.test(x));
+    return produceHead && meaningful.length >= 2 && meaningful.length <= 5;
+  }
+
+  function sourceRegionProof(candidate, result, sourceType) {
+    if (sourceType !== 'pdf' || !candidate || !validLocalPeriod(candidate, result)) return { safe:false, reason:'fonte sem prova geométrica textual aplicável' };
+    if ([...(candidate.riskFlags || [])].some((risk) => SOURCE_PROOF_NEVER_RESOLVE.has(risk))) return { safe:false, reason:'há risco crítico que a prova de região não pode remover' };
+    const page = sourcePage(result, candidate.pageNumber);
+    const evidenceBase = sourceBox(candidate.sourceEvidenceBox || candidate.preCardSourceBox || candidate.sourceBox);
+    if (!page || !evidenceBase || !(page.words || []).length || !(page.prices || []).length) return { safe:false, reason:'Knowledge JSON sem palavras/preços suficientes na região da oferta' };
+
+    const anchorChoice = sourceAnchorChoice(page, candidate, evidenceBase);
+    if (!anchorChoice || !anchorChoice.inside) return { safe:false, reason:'preço do candidato não foi localizado dentro da sua região de origem' };
+    const anchor = anchorChoice.price, anchorBox = anchorChoice.box, scale = anchorChoice.scale, scaledEvidence = anchorChoice.scaledEvidenceBox;
+    const anchorConfidence = sourcePriceConfidence(anchor);
+    if (!sourcePriceExplicit(anchor) || anchorConfidence < .70) return { safe:false, reason:'âncora de preço sem confirmação suficiente na própria fonte' };
+
+    const priceFacts = (page.prices || []).map((p) => ({ raw:p, value:sourcePriceValue(p), box:sourceBox(p?.bbox || p?.box) })).filter((p) => p.value != null && p.box);
+    const nearbyMarginX = Math.max(10, scaledEvidence.width*.15), nearbyMarginY = Math.max(10, scaledEvidence.height*.12);
+    const nearby = priceFacts.filter((p) => sourceContainsCenter(scaledEvidence, p.box, nearbyMarginX, nearbyMarginY));
+    // O bbox legado pode invadir o card ao lado. Incluímos preços vizinhos na disputa
+    // de propriedade das palavras para impedir que duas ofertas adjacentes sejam fundidas.
+    const competitionBox = sourceExpand(scaledEvidence, Math.max(90, scaledEvidence.width*.70), Math.max(65, scaledEvidence.height*.60));
+    const competitors = priceFacts.filter((p) => sourceContainsCenter(competitionBox, p.box, 0, 0));
+    const ownerPrices = competitors.length ? competitors : (nearby.length ? nearby : [{raw:anchor,value:sourcePriceValue(anchor),box:anchorBox}]);
+
+    const wordItems = (page.words || []).map((word) => ({ text:clean(word?.text), box:sourceWordBox(word), raw:word })).filter((word) => word.text && word.box)
+      .filter((word) => sourceContainsCenter(scaledEvidence, word.box, Math.max(3,scaledEvidence.width*.02), Math.max(3,scaledEvidence.height*.025)))
+      // Alguns preços "spatial-decimal" têm bbox grande que engloba também o nome do produto.
+      // Não descartamos palavras alfabéticas só porque cruzam esse retângulo; removemos apenas
+      // tokens que são efetivamente fragmentos monetários/numéricos do preço.
+      .filter((word) => !/^(?:R\$?|\$|\d{1,4}|[,.]\d{1,2})$/i.test(word.text));
+
+    const owned = [];
+    wordItems.forEach((word) => {
+      const scored = ownerPrices.map((price) => ({ price, cost:sourcePriceOwnerCost(word.box, price.box) })).sort((a,b) => a.cost-b.cost);
+      if (!scored.length || scored[0].price.raw !== anchor) return;
+      if (scored[1] && scored[1].cost-scored[0].cost < Math.max(6, scored[0].cost*.10)) return;
+      if (scored[0].cost > Math.max(155, scaledEvidence.width*.72 + scaledEvidence.height*.38)) return;
+      if (!sourceWordIsMetadata(word.text)) owned.push(word);
+    });
+
+    const rows = sourceGroupOwnedWords(owned);
+    let usableRows = rows.filter((row) => {
+      const value = clean(row.text);
+      if (!value || SOURCE_META_RE.test(value) || INSTITUTIONAL_RE.test(value) || SOURCE_MONEY_RE.test(value)) return false;
+      if (/^(?:LIMITE|POR CLIENTE|CADA|KG|CLIENTE|PAGA)$/i.test(value)) return false;
+      return true;
+    });
+    let refinedName = sourceDedupProductText(usableRows.map((row) => row.text).join(' ')).slice(0,160);
+    // Alguns bboxes do motor legado são amplos ou deslocados. Quando isso impede a leitura do
+    // nome, recuperamos a identidade a partir da âncora de preço e da propriedade espacial das
+    // palavras próximas, comparando também contra preços vizinhos para não misturar cards.
+    const compactRecovery = sourceRecoverNameAroundPrice(page, anchor, priceFacts, candidate);
+    const originalCoreForRecovery = cleanProductForCertification(candidate.productName);
+    const originalIdentityForRecovery = productIdentityProof(originalCoreForRecovery, candidate);
+    const recoveryRisks = new Set(candidate.riskFlags || []);
+    const recoveryAllowed = !originalIdentityForRecovery.safe
+      || recoveryRisks.has('ocr_incomplete_description')
+      || recoveryRisks.has('short_product_name')
+      || recoveryRisks.has('ocr_low_description_quality');
+    if (recoveryAllowed && !sourceProductQuality(refinedName, candidate) && sourceProductQuality(compactRecovery.text, candidate)) {
+      const cAgree = Math.max(tokenSimilarity(originalCoreForRecovery, compactRecovery.text), exactCoreAgreement(originalCoreForRecovery, compactRecovery.text));
+      const extra = Math.max(0, tokens(compactRecovery.text).length - tokens(originalCoreForRecovery).length);
+      if (!originalIdentityForRecovery.safe || cAgree >= .48) {
+        if (!originalIdentityForRecovery.safe || extra <= Math.max(2, Math.ceil(tokens(originalCoreForRecovery).length * .40))) {
+          refinedName = compactRecovery.text;
+          usableRows = compactRecovery.rows;
+        }
+      }
+    } else if (recoveryAllowed && sourceProductQuality(refinedName, candidate) && sourceProductQuality(compactRecovery.text, candidate)) {
+      const rAgree = Math.max(tokenSimilarity(originalCoreForRecovery, refinedName), exactCoreAgreement(originalCoreForRecovery, refinedName));
+      const cAgree = Math.max(tokenSimilarity(originalCoreForRecovery, compactRecovery.text), exactCoreAgreement(originalCoreForRecovery, compactRecovery.text));
+      const extra = Math.max(0, tokens(compactRecovery.text).length - tokens(originalCoreForRecovery).length);
+      if ((cAgree >= rAgree + .08 || (cAgree >= .62 && tokens(compactRecovery.text).length > tokens(refinedName).length))
+          && extra <= Math.max(2, Math.ceil(tokens(originalCoreForRecovery).length * .40))) {
+        refinedName = compactRecovery.text;
+        usableRows = compactRecovery.rows;
+      }
+    }
+    if (!sourceProductQuality(refinedName, candidate)) return { safe:false, reason:'descrição direta da região ainda é incompleta ou contaminada' };
+
+    const originalName = cleanProductForCertification(candidate.productName);
+    const identityReferences = unique([
+      cleanProductForCertification(candidate?.cardResolution?.originalProductName || ''),
+      cleanProductForCertification(candidate?.cardResolution?.resolvedProductName || ''),
+      originalName
+    ]).filter(Boolean);
+    const strongReference = identityReferences.find((name) => productIdentityProof(name, {
+      ...candidate,
+      packageText: sourceExtractPackage(name) || candidate?.packageText || ''
+    }).safe === true) || '';
+    const comparisonName = strongReference || originalName;
+    const comparisonIdentity = productIdentityProof(comparisonName, {
+      ...candidate,
+      packageText: sourceExtractPackage(comparisonName) || candidate?.packageText || ''
+    });
+    const similarity = tokenSimilarity(comparisonName, refinedName);
+    const containment = exactCoreAgreement(comparisonName, refinedName);
+    const originalMeaningful = new Set(tokens(comparisonName).filter((t) => !/^(?:KG|G|GR|ML|L|LT|LTS|UN|UND|CADA|TIPO|TIPOS|SABOR|SABORES|FRAGRANCIA|FRAGRANCIAS)$/.test(t)));
+    const refinedTokens = new Set(tokens(refinedName));
+    let sharedMeaningful = 0;
+    originalMeaningful.forEach((token) => { if (refinedTokens.has(token)) sharedMeaningful += 1; });
+    const agreement = Math.max(similarity, containment);
+    if (comparisonName && comparisonIdentity.safe && agreement < .58) return { safe:false, reason:'descrição da região não confirma o produto original do card' };
+    if (comparisonName && !comparisonIdentity.safe && agreement < .34 && sharedMeaningful < 2) return { safe:false, reason:'região não recuperou identidade suficiente para substituir a descrição incompleta' };
+
+    // A região é a prova da associação. Quando o Card Resolver possui uma descrição mais rica
+    // e ela concorda com o núcleo recuperado diretamente da página, preservamos embalagem/marca
+    // em vez de publicar uma descrição truncada.
+    let finalName = refinedName;
+    if (strongReference && sourceProductQuality(strongReference, candidate)) {
+      const richerAgreement = Math.max(tokenSimilarity(strongReference, refinedName), exactCoreAgreement(strongReference, refinedName));
+      const richerTokens = tokens(strongReference).length;
+      const refinedTokenCount = tokens(refinedName).length;
+      if (richerAgreement >= .48 && richerTokens >= refinedTokenCount && clean(strongReference).length > clean(refinedName).length) finalName = strongReference;
+    }
+
+    const refinedRawBox = sourceUnion([...usableRows.map((row) => row.box), anchorBox]);
+    if (!refinedRawBox) return { safe:false, reason:'não foi possível delimitar o bloco produto/preço' };
+    const refinedPriceFacts = priceFacts.filter((price) => sourceContainsCenter(refinedRawBox, price.box, Math.max(4,refinedRawBox.width*.035), Math.max(4,refinedRawBox.height*.04)));
+    const currentPrice = roundPrice(candidate.price);
+    const previousPrice = roundPrice(candidate.previousPrice);
+    const isClub = candidate.priceKind === 'club' && validPrice(previousPrice) && previousPrice > currentPrice;
+    const allowed = new Set([currentPrice, ...(isClub ? [previousPrice] : [])].filter(validPrice).map((v) => Number(v).toFixed(2)));
+    const foreignRefined = refinedPriceFacts.filter((p) => !allowed.has(Number(p.value).toFixed(2)));
+    if (foreignRefined.length) return { safe:false, reason:'outro preço invade o bloco final da oferta' };
+
+    // One price per ordinary offer. Club pairs are accepted only when both prices are present and the
+    // local text explicitly signals the club/customer condition.
+    const distinctRefined = unique(refinedPriceFacts.map((p) => Number(p.value).toFixed(2)));
+    if (!isClub && distinctRefined.length !== 1) return { safe:false, reason:'há mais de um preço possível no mesmo bloco' };
+    if (isClub) {
+      const localText = clean(wordItems.map((w) => w.text).join(' '));
+      if (!allowed.has(Number(currentPrice).toFixed(2)) || !allowed.has(Number(previousPrice).toFixed(2)) || !/CLIENTE|CLUBE|PAGA/i.test(localText)) return { safe:false, reason:'par Clube/preço normal não está explicitamente comprovado' };
+      if (![Number(currentPrice).toFixed(2),Number(previousPrice).toFixed(2)].every((value) => distinctRefined.includes(value))) return { safe:false, reason:'par Clube incompleto na região da oferta' };
+    }
+
+    const rawExtent = sourcePageObservedExtent(page);
+    const rawPageWidth = Math.max(Number(page.width||0)*scale, rawExtent?.x1||0, 1);
+    const rawPageHeight = Math.max(Number(page.height||0)*scale, rawExtent?.y1||0, 1);
+    const areaRatio = (refinedRawBox.width*refinedRawBox.height) / Math.max(1,rawPageWidth*rawPageHeight);
+    if (areaRatio > .045) return { safe:false, reason:'bloco final amplo demais para automação segura' };
+
+    const refinedSourceBox = sourceUnscaleBox(refinedRawBox, scale);
+    const saleUnit = sourceSaleUnitAroundPrice(page, anchor, priceFacts);
+    const packageText = sourceExtractPackage(finalName) || sourceExtractPackage(refinedName) || clean(candidate.packageText || '') || (saleUnit === 'kg' ? 'kg' : '');
+    const remainingRisks = (candidate.riskFlags || []).filter((risk) => !SOURCE_PROOF_RECOVERABLE_RISKS.has(risk));
+    const unresolvedHard = remainingRisks.some((risk) => LOCAL_HARD_RISKS.has(risk));
+    if (unresolvedHard) return { safe:false, reason:'permanece risco crítico mesmo após a prova direta', remainingRisks };
+
+    return {
+      safe:true,
+      tier:'source-region-proof',
+      confidence:.995,
+      reason:'produto e preço comprovados diretamente na mesma região da página, sem preço concorrente',
+      productName:finalName,
+      packageText,
+      saleUnit,
+      sourceBox:refinedSourceBox || candidate.sourceBox,
+      sourceProof:{
+        method:'direct-source-region', pageNumber:Number(candidate.pageNumber||1), scale:Number(scale.toFixed(4)),
+        price:currentPrice, previousPrice:isClub?previousPrice:null, priceAnchorExplicit:sourcePriceExplicit(anchor),
+        priceAnchorConfidence:Number(anchorConfidence.toFixed(4)), productSimilarity:Number(similarity.toFixed(4)),
+        areaRatio:Number(areaRatio.toFixed(6)), distinctPrices:distinctRefined.map(Number),
+        productText:finalName, saleUnit, bbox:refinedSourceBox || null
+      },
+      remainingRisks
+    };
+  }
+
   function hasUsableGeometry(candidate) {
-    const box = candidate?.sourceBox || candidate?.cardBox || candidate?.priceBox;
+    const box = candidate?.sourceEvidenceBox || candidate?.preCardSourceBox || candidate?.sourceBox || candidate?.cardBox || candidate?.priceBox;
     if (!box || typeof box !== 'object') return false;
     const w = Number(box.width ?? (Number(box.x1) - Number(box.x0)));
     const h = Number(box.height ?? (Number(box.y1) - Number(box.y0)));
@@ -1064,7 +1563,7 @@ REGRAS ABSOLUTAS:
     const normalized = normalizeName(raw);
     const parts = normalized.split(/\s+/).filter(Boolean);
     if (!raw || parts.length < 2 || parts.length > 16) return { safe:false, reason:'descrição curta ou extensa demais' };
-    if (/R\$|\b\d{1,4}[,.]\d{2}\b/.test(raw)) return { safe:false, reason:'descrição contém preço' };
+    if (/R\$|\b\d{1,4}[,.]\d{2}\b|(?:^|\s)[,.]\d{2}(?:\s|$)/.test(raw)) return { safe:false, reason:'descrição contém preço ou fragmento de preço' };
     if (INSTITUTIONAL_RE.test(raw) || /^(?:LIMITE|POR\s+CLIENTE|NESTA\s+EMBALAGEM|UNIDADE\s+SAI|CADA|OFERTAS?\b)/i.test(raw)) {
       return { safe:false, reason:'texto institucional/condição não é identidade de produto' };
     }
@@ -1093,6 +1592,8 @@ REGRAS ABSOLUTAS:
     const exact = new Map();
     parts.forEach((token) => exact.set(token, (exact.get(token) || 0) + 1));
     exact.forEach((count, token) => { if (count > 1 && token.length >= 3) fragments += count - 1; });
+    const semanticHeads = new Set(['VINHO','CERVEJA','CAFE','LEITE','BISCOITO','CHOCOLATE','SABAO','RACAO','REFRIG','REFRIGERANTE','QUEIJO','MARGARINA']);
+    exact.forEach((count, token) => { if (count > 1 && semanticHeads.has(token)) fragments += 2; });
     for (let i = 0; i < parts.length; i += 1) {
       for (let j = i + 1; j <= Math.min(parts.length - 1, i + 4); j += 1) {
         const a = parts[i], b = parts[j];
@@ -1121,7 +1622,6 @@ REGRAS ABSOLUTAS:
     const risks = new Set(candidate?.riskFlags || []);
     const hardBlocked = [...risks].some((risk) => LOCAL_HARD_RISKS.has(risk));
     const productName = cleanProductForCertification(candidate?.productName);
-    const tokens = productName.split(/\s+/).filter(Boolean);
     const price = Number(candidate?.price);
     const textSource = sourceType === 'text' || /text/i.test(String(candidate?.extractionMode || ''));
     const imageSource = sourceType === 'image' || /image|ocr-image/i.test(String(candidate?.extractionMode || ''));
@@ -1132,107 +1632,342 @@ REGRAS ABSOLUTAS:
     const ownership = clamp(Number(candidate?.ownershipConfidence || 0), 0, 1);
     const coherence = clamp(Number(candidate?.clusterCoherence || 0), 0, 1);
     const description = clamp(Number(candidate?.descriptionAgreement || candidate?.blockCoherence || 0), 0, 1);
+    const nestedCard = candidate?.cardResolution || {};
     const cardConfidence = Number.isFinite(Number(candidate?.cardConfidence)) ? clamp(Number(candidate.cardConfidence), 0, 1) : null;
-    const cardScore = Number.isFinite(Number(candidate?.cardResolutionScore)) ? clamp(Number(candidate.cardResolutionScore), 0, 1) : null;
+    const rawCardScore = candidate?.cardResolutionScore ?? nestedCard?.score;
+    const rawCardSupport = candidate?.cardSupport ?? nestedCard?.cardSupport;
+    const cardScore = Number.isFinite(Number(rawCardScore)) ? clamp(Number(rawCardScore), 0, 1) : null;
+    const cardSupport = Number.isFinite(Number(rawCardSupport)) ? clamp(Number(rawCardSupport), 0, 1) : null;
+    const cardStatus = String(nestedCard?.status || candidate?.cardResolutionStatus || '').toLowerCase();
     const detectedPrices = Array.isArray(candidate?.detectedPrices) ? candidate.detectedPrices.filter((x) => Number.isFinite(Number(x)) && Number(x) > 0) : [];
     const clubPair = candidate?.priceKind === 'club' && Number(candidate?.previousPrice) > price;
     const priceShapeSafe = detectedPrices.length <= 1 || (detectedPrices.length === 2 && clubPair);
     const identityProof = productIdentityProof(productName, candidate);
-    const identitySafe = identityProof.safe;
     const periodSafe = validLocalPeriod(candidate, result);
     const geometrySafe = hasUsableGeometry(candidate);
-    const baseSafe = !hardBlocked && Number.isFinite(price) && price > 0 && price < 10000 && identitySafe && periodSafe && priceShapeSafe;
+    const incompleteGenericMeat = risks.has('ocr_incomplete_description')
+      && /^FRANGO\b/i.test(productName)
+      && !/(?:PEITO|FILE|FILÉ|COXA|SOBRECOXA|INTEIRO|ASA|SASSAMI)/i.test(productName);
+    const baseSafe = !hardBlocked && !incompleteGenericMeat && Number.isFinite(price) && price > 0 && price < 10000 && identityProof.safe && periodSafe && priceShapeSafe;
 
     if (!baseSafe || textSource) {
-      return { safe:false, confidence, tier:'review', reason: identitySafe ? 'evidência insuficiente para automação' : identityProof.reason };
+      return { safe:false, confidence, tier:'review', reason:identityProof.safe ? 'evidência insuficiente para automação' : identityProof.reason };
     }
-
-    // Regra 1: se o motor documental original já provou automação, preservamos a decisão.
-    // Isso exige que todas as travas críticas continuem limpas nesta camada.
-    if (originalAuto) {
-      if (association < .72) {
-        return { safe:false, confidence, tier:'supervised', reason:'associação produto/preço abaixo do mínimo de prova' };
-      }
-      const certified = Math.max(.99, confidence);
-      return { safe:true, confidence:Math.min(.997, certified), tier:'native-certified', reason:'automação já comprovada pelo motor documental e revalidada sem riscos críticos' };
-    }
-
-    // Imagens/OCR permanecem mais conservadoras: somente a automação já comprovada pelo próprio motor visual é aceita.
     if (imageSource) {
       return { safe:false, confidence, tier:structuralSafe ? 'supervised' : 'review', reason:'imagem exige consenso visual forte antes de automação' };
     }
 
-    // PDF com texto/geometry: segunda camada de certificação determinística.
-    // Só promove quando os sinais independentes de associação, propriedade e coerência convergem.
-    const strongCard = (cardConfidence == null || cardConfidence >= .90) && (cardScore == null || cardScore >= .78);
-    const strongConsensus = structuralSafe && geometrySafe && confidence >= .965
-      && association >= .90 && ownership >= .78 && coherence >= .80
-      && (description === 0 || description >= .68) && strongCard;
-
-    if (strongConsensus) {
-      const proof = Math.min(1,
-        confidence * .32 + association * .20 + ownership * .17 + coherence * .15
-        + (description || .90) * .08 + (cardConfidence == null ? .94 : cardConfidence) * .05
-        + (cardScore == null ? .90 : cardScore) * .03
-      );
-      // A certificação local só recebe selo automático quando o consenso composto alcança 99%.
-      if (proof >= .99) {
-        return { safe:true, confidence:Math.min(.997, Math.max(.99, proof)), tier:'local-consensus', reason:'produto, preço, validade e geometria confirmados por múltiplas evidências locais' };
+    const cardResolved = !cardStatus || cardStatus === 'resolved';
+    const strongCard = cardResolved
+      && (cardScore == null || cardScore >= .78)
+      && (cardSupport == null || cardSupport >= .50)
+      && (cardConfidence == null || cardConfidence >= .88);
+    if (originalAuto) {
+      // Um card resolvido com score/support fortes já é uma prova independente suficiente
+      // para preservar a automação original. O campo associationAgreement nem sempre é
+      // serializado no Knowledge JSON e não pode, sozinho, derrubar uma associação que o
+      // próprio Card Resolver confirmou.
+      if (strongCard) {
+        return { safe:true, confidence:Math.min(.997, Math.max(.99, confidence)), tier:'card-certified', reason:'automação original confirmada novamente pelo card documental' };
       }
-      return { safe:false, confidence:Math.max(confidence, proof), tier:'supervised', reason:'estrutura forte, mas consenso composto abaixo do limite automático' };
+      const lowCardButClean = cardResolved
+        && association >= .72
+        && identityProof.safe
+        && !risks.has('ocr_incomplete_description')
+        && (cardScore == null || cardScore >= .55);
+      if (lowCardButClean) {
+        return { safe:true, confidence:Math.min(.995, Math.max(.985, confidence)), tier:'legacy-clean-source', reason:'automação original preservada porque a identidade é limpa e o card não apresenta conflito' };
+      }
     }
 
-    return { safe:false, confidence, tier:structuralSafe ? 'supervised' : 'review', reason:'caso ambíguo mantido como exceção' };
+    const strongConsensus = structuralSafe && geometrySafe && confidence >= .985
+      && association >= .94 && ownership >= .84 && coherence >= .86
+      && (description === 0 || description >= .76) && strongCard;
+    if (strongConsensus) {
+      // Consenso geométrico sozinho não prova a identidade comercial completa. Mantemos
+      // como revisão quando não houve prova direta da fonte nem automação original limpa.
+      return { safe:false, confidence:Math.min(.995, Math.max(.99, confidence)), tier:'strict-local-review', reason:'estrutura forte, mas identidade não foi comprovada diretamente pela fonte' };
+    }
+
+    return { safe:false, confidence, tier:structuralSafe ? 'supervised' : 'review', reason:'card não comprovou suficientemente a associação produto/preço' };
+  }
+
+  function sourceCandidateIdentity(candidate) {
+    return cleanProductForCertification(candidate?.productName).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+  }
+
+  function sourceNameSimilarity(a, b) {
+    return Math.max(tokenSimilarity(a, b), exactCoreAgreement(a, b));
+  }
+
+  function sourceBoxesNear(a, b) {
+    const A = sourceBox(a), B = sourceBox(b);
+    if (!A || !B) return true;
+    if (sourceIntersectionRatio(A, B) >= .18) return true;
+    const ac = sourceCenter(A), bc = sourceCenter(B);
+    return Math.hypot(ac.x-bc.x, ac.y-bc.y) <= Math.max(180, (A.width+B.width+A.height+B.height)*.55);
+  }
+
+  function sourceSharedMeaningful(a, b) {
+    const generic = new Set(['DE','DO','DA','DOS','DAS','COM','SEM','TIPO','TIPOS','SABOR','SABORES','KG','G','GR','ML','L','LT','LTS','CADA','UN','UND']);
+    const A = new Set(tokens(a).filter((t) => !generic.has(t) && !/^\d/.test(t)));
+    const B = new Set(tokens(b).filter((t) => !generic.has(t) && !/^\d/.test(t)));
+    let count = 0; A.forEach((t) => { if (B.has(t)) count += 1; });
+    return count;
+  }
+
+  function sourceMergeProductNames(primary, secondary, candidate = {}) {
+    const a = sourceDedupProductText(primary), b = sourceDedupProductText(secondary);
+    if (!a) return b; if (!b) return a;
+    const base = tokens(a).length >= tokens(b).length ? a : b;
+    const extra = base === a ? b : a;
+    const seen = new Set(tokens(base));
+    const additions = clean(extra).split(/\s+/).filter((word) => {
+      const key = normalizeName(word);
+      if (!key || seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+    const merged = sourceDedupProductText(`${base} ${additions.join(' ')}`);
+    if (sourceProductQuality(merged, { ...candidate, packageText:sourceExtractPackage(merged) || candidate?.packageText || '' })) return merged;
+    return sourceProductQuality(base, candidate) ? base : a;
+  }
+
+  function sourceComparablePackage(candidate) {
+    return normalizeName(sourceExtractPackage(candidate?.productName || '') || candidate?.packageText || '').replace(/\s+/g,'');
+  }
+
+  function sourceSameCommercialOffer(a, b) {
+    if (!a || !b || Math.abs(Number(a.price||0)-Number(b.price||0)) >= .011) return false;
+    const ap = validPrice(a.previousPrice) ? Number(a.previousPrice) : null;
+    const bp = validPrice(b.previousPrice) ? Number(b.previousPrice) : null;
+    if ((ap == null) !== (bp == null)) return false;
+    if (ap != null && Math.abs(ap-bp) >= .011) return false;
+    if (String(a.priceKind||'general') !== String(b.priceKind||'general')) return false;
+    const pa = sourceComparablePackage(a), pb = sourceComparablePackage(b);
+    if (pa && pb && pa !== pb) return false;
+    const similarity = sourceNameSimilarity(a.productName, b.productName);
+    const shared = sourceSharedMeaningful(a.productName, b.productName);
+    return shared >= 2 && similarity >= .48;
   }
 
   function certifyLocalResult(result, source, reason = '') {
     const out = result && typeof result === 'object' ? result : {};
     const sourceType = clean(out.sourceType || (source?.text ? 'text' : ((source?.files || [])[0]?.type?.startsWith('image/') ? 'image' : 'pdf'))).toLowerCase();
-    const seen = new Map();
     const candidates = Array.isArray(out.candidates) ? out.candidates : [];
 
-    out.candidates = candidates.map((candidate) => {
-      const certification = localCertification(candidate, out, sourceType);
-      const nameKey = cleanProductForCertification(candidate?.productName).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
-      const duplicateKey = `${Number(candidate?.pageNumber || 0)}|${nameKey}|${Number(candidate?.price || 0).toFixed(2)}`;
-      const duplicate = nameKey && seen.has(duplicateKey);
-      if (!duplicate && nameKey) seen.set(duplicateKey, candidate?.id || duplicateKey);
+    const prepared = candidates.map((candidate) => {
+      // A prova direta precisa enxergar o texto bruto do candidato. Repetições como
+      // "VINHO ... VINHO ..." são justamente um sinal que ativa a reconstrução pela
+      // região original; deduplicar antes apagava esse indício e podia preservar um nome
+      // contaminado. A normalização só é aplicada depois da tentativa de prova da fonte.
+      const proofInput = { ...candidate, productName:candidate?.productName || '' };
+      const proof = sourceRegionProof(proofInput, out, sourceType);
+      const normalizedCandidate = { ...candidate, productName:sourceDedupProductText(candidate?.productName || '') || candidate?.productName || '' };
+      const direct = proof.safe ? {
+        ...normalizedCandidate,
+        productName:proof.productName,
+        packageText:proof.packageText,
+        saleUnit:proof.saleUnit || candidate.saleUnit || '',
+        sourceBox:proof.sourceBox || candidate.sourceBox,
+        sourceProof:proof.sourceProof,
+        confidence:proof.confidence,
+        structuralSafe:true,
+        automationSafe:true,
+        riskFlags:unique(proof.remainingRisks || []),
+        evidence:unique([...(candidate.evidence || []), `prova direta da fonte: ${proof.reason}`]),
+        localCertification:proof.tier,
+        localCertificationConfidence:proof.confidence
+      } : { ...normalizedCandidate };
+      const certification = proof.safe
+        ? { safe:true, confidence:proof.confidence, tier:proof.tier, reason:proof.reason }
+        : localCertification(direct, out, sourceType);
+      return { candidate:direct, proof, certification };
+    });
 
-      const safe = certification.safe && !duplicate;
-      const risks = unique([...(candidate?.riskFlags || []), ...(duplicate ? ['duplicate_candidate_same_import'] : [])]);
+    // Repetições do mesmo produto em páginas diferentes servem como segunda evidência documental.
+    // Usamos a ocorrência mais rica para completar nomes truncados, mas sem misturar preços/embalagens.
+    prepared.forEach((entry) => {
+      const current = entry.candidate;
+      let best = null;
+      prepared.forEach((otherEntry) => {
+        const other = otherEntry.candidate;
+        if (other === current || Number(other.pageNumber||0) === Number(current.pageNumber||0)) return;
+        if (Math.abs(Number(other.price||0)-Number(current.price||0)) >= .011) return;
+        const pa = sourceComparablePackage(current), pb = sourceComparablePackage(other);
+        if (pa && pb && pa !== pb) return;
+        const shared = sourceSharedMeaningful(current.productName, other.productName);
+        const similarity = sourceNameSimilarity(current.productName, other.productName);
+        if (shared < 2 || similarity < .48) return;
+        if (!sourceProductQuality(other.productName, other)) return;
+        const richness = tokens(other.productName).length - tokens(current.productName).length;
+        if (richness <= 0) return;
+        const rank = richness + similarity + (otherEntry.certification.safe ? .5 : 0);
+        if (!best || rank > best.rank) best = { other, rank };
+      });
+      if (best) {
+        const merged = sourceMergeProductNames(current.productName, best.other.productName, current);
+        if (merged && sourceSharedMeaningful(merged, current.productName) >= 2) {
+          current.productName = merged;
+          current.packageText = sourceExtractPackage(merged) || current.packageText || best.other.packageText || '';
+          current.evidence = unique([...(current.evidence || []), 'descrição canônica confirmada por repetição do mesmo produto em outra página do encarte']);
+        }
+      }
+    });
+
+    // Se o preço Clube veio como exceção, mas aponta explicitamente para o preço normal
+    // de uma oferta já comprovada no mesmo bloco, o próprio par vira uma segunda prova.
+    // Assim evitamos publicar só o preço normal quando o encarte oferece um preço menor ao Clube.
+    prepared.forEach((clubEntry) => {
+      const club = clubEntry.candidate;
+      if (clubEntry.certification.safe || club?.priceKind !== 'club' || !validPrice(club?.previousPrice)
+          || !(Number(club.previousPrice) > Number(club.price))) return;
+      if ([...(club.riskFlags || [])].some((risk) => SOURCE_PROOF_NEVER_RESOLVE.has(risk))) return;
+      let best = null;
+      prepared.forEach((regularEntry) => {
+        if (!regularEntry.certification.safe) return;
+        const regular = regularEntry.candidate;
+        if (regular === club || Number(regular.pageNumber||0) !== Number(club.pageNumber||0)) return;
+        if (Math.abs(Number(regular.price||0)-Number(club.previousPrice||0)) >= .011) return;
+        const overlap = sourceIntersectionRatio(club.sourceBox, regular.sourceBox);
+        const shared = sourceSharedMeaningful(club.productName, regular.productName);
+        const similarity = sourceNameSimilarity(club.productName, regular.productName);
+        if (!(overlap >= .45 && shared >= 2) && !(similarity >= .52 && shared >= 2 && sourceBoxesNear(club.sourceBox, regular.sourceBox))) return;
+        const rank = overlap + similarity + shared * .10;
+        if (!best || rank > best.rank) best = { regularEntry, rank };
+      });
+      if (!best) return;
+      const regular = best.regularEntry.candidate;
+      const mergedName = sourceMergeProductNames(club.productName, regular.productName, club);
+      if (!sourceProductQuality(mergedName, { ...club, packageText:sourceExtractPackage(mergedName) || club.packageText || regular.packageText || '' })) return;
+      club.productName = mergedName;
+      club.packageText = sourceExtractPackage(mergedName) || club.packageText || regular.packageText || '';
+      club.structuralSafe = true;
+      club.automationSafe = true;
+      club.riskFlags = (club.riskFlags || []).filter((risk) => SOURCE_PROOF_NEVER_RESOLVE.has(risk));
+      club.evidence = unique([...(club.evidence || []), 'preço Clube e preço normal confirmados pelo mesmo bloco/oferta comprovada']);
+      clubEntry.certification = { safe:true, confidence:.995, tier:'club-pair-reconciled', reason:'preço Clube reconciliado com o preço normal comprovado no mesmo card' };
+    });
+
+    const shadowOf = new Map();
+    const safeClubEntries = prepared.filter((entry) => entry.certification.safe
+      && entry.candidate?.priceKind === 'club'
+      && validPrice(entry.candidate?.previousPrice)
+      && Number(entry.candidate.previousPrice) > Number(entry.candidate.price));
+    safeClubEntries.forEach((clubEntry) => {
+      const club = clubEntry.candidate;
+      const matches = [];
+      prepared.forEach((entry) => {
+        const regular = entry.candidate;
+        if (regular === club) return;
+        if (Math.abs(Number(regular?.price||0)-Number(club.previousPrice||0)) >= .011) return;
+        const similarity = sourceNameSimilarity(club.productName, regular.productName);
+        const overlap = sourceIntersectionRatio(club.sourceBox, regular.sourceBox);
+        const shared = sourceSharedMeaningful(club.productName, regular.productName);
+        const samePage = Number(regular?.pageNumber||0) === Number(club?.pageNumber||0);
+        const sameRegionPair = samePage && overlap >= .45 && shared >= 1;
+        const nearbySemanticPair = samePage && similarity >= .52 && shared >= 2 && sourceBoxesNear(club.sourceBox, regular.sourceBox);
+        const pc = sourceComparablePackage(club), pr = sourceComparablePackage(regular);
+        const crossPageSameProduct = !samePage && shared >= 3 && similarity >= .68 && (!pc || !pr || pc === pr);
+        if (!sameRegionPair && !nearbySemanticPair && !crossPageSameProduct) return;
+        const rank = similarity + overlap * .35 + Math.min(4, shared) * .08 + (crossPageSameProduct ? .20 : 0);
+        matches.push({ entry, similarity, overlap, shared, rank });
+      });
+      if (matches.length) {
+        matches.sort((a,b) => b.rank-a.rank);
+        const best = matches[0];
+        const regular = best.entry.candidate;
+        const mergedName = sourceMergeProductNames(club.productName, regular.productName, club);
+        if (mergedName && sourceSharedMeaningful(mergedName, club.productName) >= 1) {
+          club.productName = mergedName;
+          club.packageText = sourceExtractPackage(mergedName) || club.packageText || regular.packageText || '';
+          club.evidence = unique([...(club.evidence || []), 'preço Clube reconciliado com a descrição do preço normal no mesmo card/região']);
+        }
+        // Todo preço normal comprovadamente correspondente ao mesmo produto/Clube é sombra,
+        // inclusive quando o mesmo produto reaparece em outra página do encarte.
+        matches.forEach((match) => {
+          const shadow = match.entry.candidate;
+          shadowOf.set(shadow.id || shadow, club.id || 'club-offer');
+        });
+      }
+    });
+
+    const duplicateOf = new Map();
+    const winners = [];
+    [...prepared].sort((a,b) => Number(b.certification.safe)-Number(a.certification.safe) || Number(b.certification.confidence||0)-Number(a.certification.confidence||0))
+      .forEach((entry) => {
+        const c = entry.candidate;
+        if (shadowOf.has(c.id || c)) return;
+        const keyName = sourceCandidateIdentity(c);
+        const existing = winners.find((w) => {
+          const samePrice = Math.abs(Number(w.candidate.price||0)-Number(c.price||0)) < .011;
+          if (!samePrice) return false;
+          const samePage = Number(w.candidate.pageNumber||0) === Number(c.pageNumber||0);
+          if (samePage) {
+            return sourceCandidateIdentity(w.candidate) === keyName
+              && sourceIntersectionRatio(w.candidate.sourceBox, c.sourceBox) >= .55;
+          }
+          // O mesmo produto repetido em outra página do mesmo encarte não deve criar promoção duplicada.
+          return sourceSameCommercialOffer(w.candidate, c);
+        });
+        if (existing && keyName) duplicateOf.set(c.id || c, existing.candidate.id || 'same-source-offer');
+        else winners.push(entry);
+      });
+
+    out.candidates = prepared.map(({candidate, certification}) => {
+      const shadowTarget = shadowOf.get(candidate.id || candidate);
+      const duplicateTarget = duplicateOf.get(candidate.id || candidate);
+      const suppressedTarget = shadowTarget || duplicateTarget;
+      const suppressed = Boolean(suppressedTarget);
+      const safe = certification.safe && !suppressed;
+      const risks = unique([
+        ...(candidate.riskFlags || []),
+        ...(shadowTarget ? ['club_regular_shadow'] : []),
+        ...(duplicateTarget ? ['duplicate_candidate_same_import'] : [])
+      ]);
       const evidence = unique([
-        ...(candidate?.evidence || []),
+        ...(candidate.evidence || []),
         safe ? `certificação local: ${certification.reason}` : `triagem local: ${certification.reason}`,
+        ...(shadowTarget ? [`preço normal incorporado ao candidato Clube ${shadowTarget}; não é uma segunda promoção`] : []),
+        ...(duplicateTarget ? [`duplicata determinística da oferta ${duplicateTarget}; excluída automaticamente`] : []),
         reason ? `motor externo não utilizado: ${reason}` : 'certificação executada integralmente no motor local'
       ]);
       return {
         ...candidate,
-        confidence: safe ? certification.confidence : Math.max(Number(candidate?.confidence || 0), Number(certification.confidence || 0)),
-        automationSafe: safe,
-        localCertification: certification.tier,
-        localCertificationConfidence: certification.confidence,
-        riskFlags: risks,
+        confidence:safe ? certification.confidence : Math.max(Number(candidate.confidence||0), Number(certification.confidence||0)),
+        automationSafe:safe,
+        structuralSafe:safe ? true : candidate.structuralSafe === true,
+        localCertification:certification.tier,
+        localCertificationConfidence:certification.confidence,
+        ignored:suppressed ? true : candidate.ignored === true,
+        duplicateOf:suppressed ? suppressedTarget : (candidate.duplicateOf || null),
+        riskFlags:risks,
         evidence
       };
-    });
+    }).sort((a,b) => Number(a.pageNumber||0)-Number(b.pageNumber||0) || Number(a.sourceBox?.y||0)-Number(b.sourceBox?.y||0) || Number(a.sourceBox?.x||0)-Number(b.sourceBox?.x||0));
 
-    const automatic = out.candidates.filter((c) => c.automationSafe === true && !(c.riskFlags || []).some((r) => LOCAL_HARD_RISKS.has(r))).length;
+    const automatic = out.candidates.filter((c) => c.automationSafe === true && !c.ignored && !(c.riskFlags || []).some((r) => LOCAL_HARD_RISKS.has(r))).length;
+    const sourceCertified = out.candidates.filter((c) => c.localCertification === 'source-region-proof' && c.automationSafe === true && !c.ignored).length;
+    const autoExcludedDuplicates = out.candidates.filter((c) => c.ignored && c.duplicateOf).length;
     out.localCertified = true;
     out.aiFallback = false;
     out.aiFallbackReason = '';
-    out.extractionMode = `${out.extractionMode || 'local'}+local-consensus-certifier`;
-    out.engineVersion = `${out.engineVersion || 'local'}+7.5.0-card-proof-certifier`;
+    out.extractionMode = `${out.extractionMode || 'local'}+source-region-proof`;
+    out.engineVersion = `${out.engineVersion || 'local'}+7.6.1-source-proof-club-reconcile`;
     out.knowledgeMetrics = out.knowledgeMetrics || {};
-    out.knowledgeMetrics.modes = unique([...(out.knowledgeMetrics.modes || []), 'card-proof-certifier']);
+    out.knowledgeMetrics.modes = unique([...(out.knowledgeMetrics.modes || []), 'source-region-proof', 'club-reconcile']);
     out.knowledgeMetrics.automatic = automatic;
+    out.knowledgeMetrics.sourceCertified = sourceCertified;
+    out.knowledgeMetrics.autoExcludedDuplicates = autoExcludedDuplicates;
     out.knowledgeMetrics.candidates = out.candidates.length;
 
     if (out.knowledgeDocument && typeof out.knowledgeDocument === 'object') {
       out.knowledgeDocument.extraction = {
         ...(out.knowledgeDocument.extraction || {}),
-        localCertification: true,
-        automaticPublicationAllowed: automatic > 0,
-        externalAIRequired: false
+        localCertification:true,
+        sourceRegionProof:true,
+        clubPairDeduplication:true,
+        automaticPublicationAllowed:automatic>0,
+        externalAIRequired:false
       };
       if (Array.isArray(out.knowledgeDocument.offerCandidates)) {
         const byId = new Map(out.candidates.map((c) => [String(c.id || ''), c]));
@@ -1240,20 +1975,27 @@ REGRAS ABSOLUTAS:
           const candidate = byId.get(String(offer.id || ''));
           return candidate ? {
             ...offer,
-            automationSafe: candidate.automationSafe === true,
-            structuralSafe: candidate.structuralSafe === true,
-            confidence: candidate.confidence,
-            riskFlags: candidate.riskFlags,
-            localCertification: candidate.localCertification
+            productName:candidate.productName,
+            packageText:candidate.packageText,
+            bbox:candidate.sourceBox || offer.bbox,
+            automationSafe:candidate.automationSafe===true,
+            structuralSafe:candidate.structuralSafe===true,
+            confidence:candidate.confidence,
+            riskFlags:candidate.riskFlags,
+            localCertification:candidate.localCertification,
+            sourceProof:candidate.sourceProof || null,
+            ignored:candidate.ignored===true,
+            duplicateOf:candidate.duplicateOf || null
           } : offer;
         });
       }
       out.knowledgeDocument.resolvedOffers = out.candidates
-        .filter((c) => c.automationSafe === true && !(c.riskFlags || []).some((r) => LOCAL_HARD_RISKS.has(r)))
+        .filter((c) => c.automationSafe === true && !c.ignored && !(c.riskFlags || []).some((r) => LOCAL_HARD_RISKS.has(r)))
         .map((c) => ({
-          id:c.id, productName:c.productName, brand:c.brand || '', packageText:c.packageText || '', category:c.category || 'outros',
-          price:c.price, previousPrice:c.previousPrice || null, priceKind:c.priceKind || 'general', requiresClub:c.requiresClub === true,
-          clubName:c.clubName || '', conditions:c.conditions || '', pageNumber:c.pageNumber || 1, confidence:c.confidence, bbox:c.sourceBox || null
+          id:c.id, productName:c.productName, brand:c.brand||'', packageText:c.packageText||'', category:c.category||'outros',
+          price:c.price, previousPrice:c.previousPrice||null, priceKind:c.priceKind||'general', requiresClub:c.requiresClub===true,
+          clubName:c.clubName||'', conditions:c.conditions||'', pageNumber:c.pageNumber||1, confidence:c.confidence,
+          bbox:c.sourceBox||null, sourceProof:c.sourceProof||null
         }));
     }
     return out;
@@ -1402,7 +2144,7 @@ REGRAS ABSOLUTAS:
     lastKnowledgeDocument: null,
     __professionalConsensusEngineInstalled: true,
     __professionalEngineVersion: ENGINE_VERSION,
-    __professionalTest: { normalizeDocument, clusterPasses, buildCandidates, validityConsensus, localCertification, certifyLocalResult }
+    __professionalTest: { normalizeDocument, clusterPasses, buildCandidates, validityConsensus, localCertification, sourceRegionProof, certifyLocalResult }
   };
 
   const wrappedAnalyzeSource = api.analyzeSource.bind(api);
@@ -1418,5 +2160,5 @@ REGRAS ABSOLUTAS:
   };
 
   window.MercadorPDFImporter = api;
-  console.info(`[Mercador IA] Document Intelligence ${ENGINE_VERSION}: certificação local por consenso; IA externa não é necessária.`);
+  console.info(`[Mercador IA] Document Intelligence ${ENGINE_VERSION}: prova direta da fonte + reconciliação Clube; IA externa não é necessária.`);
 })();
