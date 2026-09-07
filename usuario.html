@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Mercador IA — Sua Compra</title>
-    <!-- Build consumidor: V3.6 · lista guiada + calculadora compacta + finalização evidente/idempotente -->
+    <!-- Build consumidor: V3.12 · lista responsiva + calculadora por item + fechamento determinístico -->
     <meta name="theme-color" content="#007aff"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="./manifest.webmanifest">
@@ -367,6 +367,40 @@
             .keypad .calc-clear{font-size:.61rem!important;}
             .keypad .calc-register{font-size:.74rem!important;}
         }
+
+
+        /* Mercador IA V3.12 — usabilidade da lista e calculadora determinística */
+        .calculator-footer{
+            position:fixed!important;
+            left:50%!important;
+            right:auto!important;
+            bottom:0!important;
+            transform:translateX(-50%)!important;
+            width:min(100vw,980px)!important;
+            z-index:1250!important;
+            margin:0!important;
+        }
+        .main-content{
+            padding-bottom:calc(64px + env(safe-area-inset-bottom))!important;
+            scroll-padding-bottom:calc(72px + env(safe-area-inset-bottom));
+            overscroll-behavior-y:contain;
+        }
+        .app-container.calc-open .main-content{
+            padding-bottom:calc(284px + env(safe-area-inset-bottom))!important;
+            scroll-padding-bottom:calc(292px + env(safe-area-inset-bottom));
+        }
+        .app-container.calc-open .checkout-cta{display:none!important;}
+        .app-container.calc-open .item-row.active{position:relative;z-index:2;}
+        .item-row.status-faltando{cursor:pointer;touch-action:manipulation;}
+        .item-row.status-faltando:active{transform:scale(.995)!important;}
+        #toggle-calc-btn{touch-action:manipulation;}
+        @media(max-height:650px){
+            .app-container.calc-open .main-content{padding-bottom:calc(238px + env(safe-area-inset-bottom))!important;scroll-padding-bottom:calc(246px + env(safe-area-inset-bottom));}
+        }
+        @media(min-width:900px){
+            .calculator-footer{width:min(980px,calc(100vw - 40px))!important;}
+        }
+
 </style>
 </head>
 <body>
@@ -621,6 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ui = {
         appContainer: document.querySelector('.app-container'),
+        mainContent: document.querySelector('.main-content'),
         calculatorFooter: document.querySelector('.calculator-footer'),
         toggleCalcBtn: document.getElementById('toggle-calc-btn'),
         form: document.getElementById('form-adicionar-item'),
@@ -1263,7 +1298,12 @@ document.addEventListener('DOMContentLoaded', () => {
             renderSmartSuggestions();
             updatePurchaseLocationOptions();
         },
-        calculator: () => ui.calculatorFooter.classList.toggle('collapsed', state.ui.isCalculatorCollapsed),
+        calculator: () => {
+            const collapsed = state.ui.isCalculatorCollapsed;
+            ui.calculatorFooter.classList.toggle('collapsed', collapsed);
+            ui.appContainer.classList.toggle('calc-open', !collapsed);
+            ui.toggleCalcBtn?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        },
         currentList: (force = false) => {
             if (state.currentTab === 'relatorios') { if (state.reportsLoaded || state.reportsLoading) render.reports(); return; }
             render.list(state.currentTab, force);
@@ -1358,9 +1398,61 @@ document.addEventListener('DOMContentLoaded', () => {
             const reportMeta = perfStore.read('report-meta',{recentCount:0,limited:false});
             document.getElementById('tab-count-relatorios').textContent=state.reportsLoaded ? `${state.reports.length}${state.reports.length>=50?'+':''}` : (reportMeta.recentCount ? `${reportMeta.recentCount}${reportMeta.limited?'+':''}` : '•');
             document.getElementById('smart-pending-count').textContent=pending; document.getElementById('smart-bought-count').textContent=bought; document.getElementById('smart-deferred-count').textContent=deferred;
-            const adiadosTab=document.querySelector('[data-tab="adiados"]'); const label=adiadosTab.querySelector('span');
-            if(state.activeItemId && state.itens.find(i=>i.id==state.activeItemId)?.status==='faltando'){adiadosTab.classList.add('action-mode');label.textContent='Adiar';}else{adiadosTab.classList.remove('action-mode');label.textContent='Adiados';}
+            const adiadosTab=document.querySelector('[data-tab="adiados"]'); const label=adiadosTab?.querySelector('span');
+            if (adiadosTab) adiadosTab.classList.remove('action-mode');
+            if (label) label.textContent='Adiados';
             syncListTools(state.currentTab);
+        }
+    };
+
+    const calculatorUX = {
+        rememberScroll: () => Number(ui.mainContent?.scrollTop || 0),
+        restoreScroll: (scrollTop) => {
+            if (!ui.mainContent || !Number.isFinite(Number(scrollTop))) return;
+            requestAnimationFrame(() => { ui.mainContent.scrollTop = Number(scrollTop); });
+        },
+        ensureItemVisible: (id, behavior = 'smooth') => {
+            if (!id || !ui.mainContent) return;
+            requestAnimationFrame(() => {
+                const row = document.querySelector(`.item-row[data-id="${CSS.escape(String(id))}"]`);
+                if (!row) return;
+                const rowRect = row.getBoundingClientRect();
+                const mainRect = ui.mainContent.getBoundingClientRect();
+                const calcRect = ui.calculatorFooter.getBoundingClientRect();
+                const topLimit = mainRect.top + 8;
+                const bottomLimit = state.ui.isCalculatorCollapsed ? mainRect.bottom - 8 : Math.min(mainRect.bottom, calcRect.top) - 10;
+                let delta = 0;
+                if (rowRect.bottom > bottomLimit) delta = rowRect.bottom - bottomLimit;
+                else if (rowRect.top < topLimit) delta = rowRect.top - topLimit;
+                if (Math.abs(delta) > 1) ui.mainContent.scrollBy({ top: delta, behavior });
+            });
+        },
+        openForItem: (id) => {
+            const scrollTop = calculatorUX.rememberScroll();
+            state.activeItemId = id;
+            state.calcDisplay = '0';
+            state.ui.isCalculatorCollapsed = false;
+            store.saveUI();
+            render.calculator();
+            render.activeItemHighlight();
+            render.calculatorDisplay();
+            render.activeItemDisplay();
+            render.tabs();
+            calculatorUX.restoreScroll(scrollTop);
+            calculatorUX.ensureItemVisible(id, 'smooth');
+        },
+        close: ({ clearActive = true, resetDisplay = true, preserveScroll = true } = {}) => {
+            const scrollTop = preserveScroll ? calculatorUX.rememberScroll() : null;
+            if (clearActive) state.activeItemId = null;
+            if (resetDisplay) state.calcDisplay = '0';
+            state.ui.isCalculatorCollapsed = true;
+            store.saveUI();
+            render.calculator();
+            render.activeItemHighlight();
+            render.activeItemDisplay();
+            render.calculatorDisplay();
+            render.tabs();
+            if (preserveScroll) calculatorUX.restoreScroll(scrollTop);
         }
     };
 
@@ -1397,10 +1489,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             render.calculatorDisplay();
         },
-        register: () => {
+        register: async () => {
             if(!state.activeItemId){
-                window.MercadorIA?.toast?.('Selecione um item e toque em “Lançar preço” primeiro.','warning',4500);
-                state.ui.isCalculatorCollapsed=true;store.saveUI();render.calculator();
+                window.MercadorIA?.toast?.('Toque em um item da lista para lançar o preço.','warning',4200);
+                calculatorUX.close({ clearActive:true, resetDisplay:true, preserveScroll:true });
                 return;
             }
             const item=state.itens.find(i=>i.id==state.activeItemId); if(!item)return;
@@ -1415,20 +1507,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 try{price=Function(`"use strict";return (${expression})`)();}catch(_){price=NaN;}
             }
             if(!Number.isFinite(price)||price<0||!Number.isFinite(qty)||qty<=0){window.MercadorIA?.toast?.('Confira o valor digitado.','warning');return;}
-            const currentId=state.activeItemId;
-            const currentIndex=state.itens.findIndex(i=>i.id==currentId);
-            interactions.updateItem(item.id,{status:'comprado',quantidade:qty,preco:price});
+            const scrollTop = calculatorUX.rememberScroll();
+            const saved = await interactions.updateItem(item.id,{status:'comprado',quantidade:qty,preco:price});
+            if (!saved) return;
+            state.activeItemId = null;
+            state.calcDisplay = '0';
+            state.ui.isCalculatorCollapsed = true;
+            store.saveUI();
+            render.calculator();
+            render.activeItemHighlight();
+            render.activeItemDisplay();
+            render.calculatorDisplay();
+            render.tabs();
+            calculatorUX.restoreScroll(scrollTop);
             window.MercadorIA?.toast?.(`${item.nome} lançado no carrinho.`, 'success', 2300);
-            const nextItem=state.itens.find((i,index)=>i.status==='faltando'&&index>currentIndex);
-            state.activeItemId=nextItem?nextItem.id:null;
-            state.calcDisplay='0';
-            if(state.activeItemId){
-                render.activeItemHighlight();render.activeItemDisplay();render.calculatorDisplay();
-                setTimeout(()=>{const nextElement=document.querySelector(`[data-id='${state.activeItemId}']`);if(nextElement)nextElement.scrollIntoView({behavior:'smooth',block:'center'});},250);
-            } else {
-                state.ui.isCalculatorCollapsed=true;store.saveUI();render.calculator();render.activeItemDisplay();render.calculatorDisplay();
-                window.MercadorIA?.toast?.('Itens lançados. Quando terminar, toque em “Finalizar compra”.','info',5200);
-            }
         }
     };
 
@@ -1642,7 +1734,10 @@ document.addEventListener('DOMContentLoaded', () => {
         deleteItem: async (id) => {
             if (!confirm('Tem certeza que deseja remover este item?')) return;
             const index=state.itens.findIndex((x)=>String(x.id)===String(id)); if(index<0)return;
-            const removed=state.itens[index]; state.itens.splice(index,1); if (state.activeItemId === id) state.activeItemId = null;
+            const removed=state.itens[index];
+            const wasActive = String(state.activeItemId) === String(id);
+            state.itens.splice(index,1);
+            if (wasActive) { state.activeItemId = null; state.calcDisplay='0'; state.ui.isCalculatorCollapsed=true; store.saveUI(); render.calculator(); }
             renderAfterListMutation([tabForStatus(removed.status)], { membershipChanged:true });
             try { await listRef.child(id).remove(); } catch(error){ state.itens.splice(index,0,removed); renderAfterListMutation([tabForStatus(removed.status)], { membershipChanged:true }); window.MercadorIA?.toast?.('Não foi possível excluir o item.','error'); }
         },
@@ -1654,26 +1749,20 @@ document.addEventListener('DOMContentLoaded', () => {
             catch(err){ if(removed){state.reports.splice(index,0,removed);render.reports();render.tabs();} window.MercadorIA?.toast?.('Erro ao excluir relatório.','error'); }
         },
         updateItem: async (id, updates) => {
-            const before = localUpdateItem(id, updates); if (!before) return;
-            try { await listRef.child(id).update(updates); }
-            catch(error){ localUpdateItem(id, before); window.MercadorIA?.toast?.('Não foi possível sincronizar a alteração.','error'); }
+            const before = localUpdateItem(id, updates); if (!before) return false;
+            try { await listRef.child(id).update(updates); return true; }
+            catch(error){ localUpdateItem(id, before); window.MercadorIA?.toast?.('Não foi possível sincronizar a alteração.','error'); return false; }
         },
         handleItemClick: (id, status) => { if (status === 'faltando') interactions.selectItem(id); if (status === 'comprado') interactions.updateItem(id, { status: 'faltando', preco: 0, quantidade: 1 }); if (status === 'adiado') interactions.updateItem(id, { status: 'faltando' }); },
         selectItem: (id) => {
-            const selecting = state.activeItemId !== id; state.activeItemId = selecting ? id : null; state.calcDisplay = '0';
-            if (selecting) { state.ui.isCalculatorCollapsed = false; store.saveUI(); render.calculator(); }
-            render.activeItemHighlight(); render.calculatorDisplay(); render.activeItemDisplay(); render.tabs();
+            const item = state.itens.find(i => String(i.id) === String(id));
+            if (!item || item.status !== 'faltando') return;
+            calculatorUX.openForItem(item.id);
         },
-        handleTabClick: (tabName) => {
-            if (tabName === 'adiados' && state.activeItemId) {
-                const item = state.itens.find(i => i.id == state.activeItemId);
-                if (item && item.status === 'faltando') { interactions.updateItem(state.activeItemId, { status: 'adiado' }); state.activeItemId = null; return; }
-            }
-            interactions.switchTab(tabName);
-        },
+        handleTabClick: (tabName) => interactions.switchTab(tabName),
         switchTab: (tabName) => {
             if (!tabName || tabName === state.currentTab) return;
-            if(tabName!=='faltando'){state.activeItemId=null;state.ui.isCalculatorCollapsed=true;store.saveUI();render.calculator();render.activeItemDisplay();}
+            if(tabName!=='faltando'){state.activeItemId=null;state.calcDisplay='0';state.ui.isCalculatorCollapsed=true;store.saveUI();render.calculator();render.activeItemDisplay();render.calculatorDisplay();}
             const oldTab=state.currentTab; const oldContainer=document.getElementById(`lista-${oldTab}-container`);
             if(oldContainer) state.tabScroll[oldTab]=oldContainer.scrollTop||window.scrollY||0;
             state.currentTab = tabName;
@@ -1682,7 +1771,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if(tabName==='relatorios') loadRecentReports({ silent:false }); else { markListsDirty(tabName); render.list(tabName, true); }
             requestAnimationFrame(()=>{ const target=document.getElementById(`lista-${tabName}-container`); if(target && state.tabScroll[tabName]) target.scrollTop=state.tabScroll[tabName]; });
         },
-        toggleCalculator: () => { state.ui.isCalculatorCollapsed = !state.ui.isCalculatorCollapsed; store.saveUI(); render.calculator(); },
+        toggleCalculator: () => {
+            if (state.ui.isCalculatorCollapsed) {
+                if (!state.activeItemId) {
+                    window.MercadorIA?.toast?.('Toque em um produto da lista para abrir a calculadora.','info',3200);
+                    return;
+                }
+                state.ui.isCalculatorCollapsed=false;
+                store.saveUI(); render.calculator(); calculatorUX.ensureItemVisible(state.activeItemId, 'smooth');
+            } else {
+                state.ui.isCalculatorCollapsed=true;
+                store.saveUI(); render.calculator();
+            }
+        },
         openReportModal: () => {
             const comprados=state.itens.filter(i=>i.status==='comprado');
             if(!comprados.length){window.MercadorIA?.toast?.('Primeiro lance pelo menos um item no carrinho.','warning',4500)||alert('Primeiro lance pelo menos um item no carrinho.');return;}
@@ -1811,7 +1912,19 @@ document.addEventListener('DOMContentLoaded', () => {
         markListsDirty('faltando'); if(state.currentTab==='faltando')render.currentList(true); else syncListTools(state.currentTab);
     });
     document.getElementById('lista-relatorios').addEventListener('click', e => { const importBtn=e.target.closest('[data-open-receipt-import]'); if(importBtn){openReceiptImport();return;} const moreBtn=e.target.closest('[data-load-more-reports]'); if(moreBtn){loadMoreReports();return;} const deleteBtn=e.target.closest('[data-delete-report]'); if(deleteBtn){interactions.deleteReport(deleteBtn.dataset.deleteReport);return;} const editBtn=e.target.closest('[data-edit-report]'); if(editBtn){interactions.openReportEdit(editBtn.dataset.editReport);return;} const reportRow=e.target.closest('.report-item'); if(reportRow)interactions.showReport(reportRow.dataset.id); });
-    ui.appContainer.addEventListener('click', e => { if(e.target.closest('.item-offer-action,.offer-sheet-overlay'))return; const row=e.target.closest('.item-row'); if(!row)return; const id=row.dataset.id; const item=state.itens.find(i=>i.id===id); if(!item)return; if(e.target.closest('[data-item-delete]')){interactions.deleteItem(id);return;} if(e.target.closest('[data-item-defer]')){interactions.updateItem(id,{status:'adiado'});if(state.activeItemId===id)state.activeItemId=null;return;} if(e.target.closest('[data-item-restore]')){interactions.updateItem(id,{status:'faltando',preco:0,quantidade:1});return;} if(e.target.closest('[data-item-select]')){interactions.selectItem(id);return;} if(item.status==='faltando' && e.target.closest('.item-details'))interactions.selectItem(id); });
+    ui.appContainer.addEventListener('click', e => {
+        if(e.target.closest('.item-offer-action,.offer-sheet-overlay')) return;
+        const row=e.target.closest('.item-row'); if(!row) return;
+        const id=row.dataset.id; const item=state.itens.find(i=>String(i.id)===String(id)); if(!item) return;
+        if(e.target.closest('[data-item-delete]')){ interactions.deleteItem(id); return; }
+        if(e.target.closest('[data-item-defer]')){
+            if(String(state.activeItemId)===String(id)) calculatorUX.close({clearActive:true,resetDisplay:true,preserveScroll:true});
+            interactions.updateItem(id,{status:'adiado'}); return;
+        }
+        if(e.target.closest('[data-item-restore]')){ interactions.updateItem(id,{status:'faltando',preco:0,quantidade:1}); return; }
+        if(e.target.closest('[data-item-select]')){ interactions.selectItem(id); return; }
+        if(item.status==='faltando') interactions.selectItem(id);
+    });
     ui.btnFinalizar.addEventListener('click', interactions.openReportModal);
     ui.checkoutCtaBtn?.addEventListener('click', interactions.openReportModal);
     ui.closeModalBtn.addEventListener('click', () => {if(!state.finalizeInFlight){setFinalizeState('');ui.reportModal.classList.remove('visible');}});
