@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Mercador IA — Sua Compra</title>
-    <!-- Build consumidor: V3.12 · lista responsiva + calculadora por item + fechamento determinístico -->
+    <!-- Build consumidor: V3.13 · controles da lista em fluxo + calculadora sem sobreposição persistente -->
     <meta name="theme-color" content="#007aff"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="./manifest.webmanifest">
@@ -401,6 +401,84 @@
             .calculator-footer{width:min(980px,calc(100vw - 40px))!important;}
         }
 
+
+
+        /* Mercador IA V3.13 — lista livre: nada fica travado sobre os produtos */
+        .tabs{
+            position:relative!important;
+            top:auto!important;
+            z-index:auto!important;
+            background:transparent!important;
+            padding:0 0 7px!important;
+        }
+        .list-tools{
+            position:relative!important;
+            top:auto!important;
+            z-index:auto!important;
+            backdrop-filter:none!important;
+            -webkit-backdrop-filter:none!important;
+        }
+        .checkout-cta{
+            position:static!important;
+            bottom:auto!important;
+            z-index:auto!important;
+        }
+        .main-content{
+            padding-bottom:calc(14px + env(safe-area-inset-bottom))!important;
+            scroll-padding-bottom:calc(18px + env(safe-area-inset-bottom))!important;
+        }
+        .calculator-footer.collapsed{
+            height:0!important;
+            min-height:0!important;
+            padding:0!important;
+            border:0!important;
+            box-shadow:none!important;
+            background:transparent!important;
+            pointer-events:none!important;
+            overflow:visible!important;
+        }
+        .calculator-footer.collapsed #toggle-calc-btn,
+        .calculator-footer.collapsed .powered-user-footer{
+            display:none!important;
+        }
+        .calculator-footer:not(.collapsed){
+            pointer-events:auto!important;
+        }
+        .calculator-footer:not(.collapsed) #toggle-calc-btn{
+            left:auto!important;
+            right:10px!important;
+            top:-34px!important;
+            transform:none!important;
+            min-width:92px!important;
+            width:auto!important;
+            height:34px!important;
+            border-radius:11px 11px 0 0!important;
+            padding:0 10px!important;
+        }
+        .app-container.calc-open .main-content{
+            padding-bottom:calc(284px + env(safe-area-inset-bottom))!important;
+            scroll-padding-bottom:calc(292px + env(safe-area-inset-bottom))!important;
+        }
+        .item-row{scroll-margin-bottom:300px;}
+        .page-powered-footer{
+            text-align:center;
+            color:#6f7880;
+            font-size:.66rem;
+            line-height:1.25;
+            padding:12px 6px calc(8px + env(safe-area-inset-bottom));
+        }
+        .page-powered-footer strong{color:#3e4850;}
+        .calculator-footer .powered-user-footer{display:none!important;}
+        @media(max-width:899px){
+            .checkout-cta{display:none!important;}
+        }
+        @media(max-height:650px){
+            .app-container.calc-open .main-content{
+                padding-bottom:calc(238px + env(safe-area-inset-bottom))!important;
+                scroll-padding-bottom:calc(246px + env(safe-area-inset-bottom))!important;
+            }
+            .item-row{scroll-margin-bottom:254px;}
+        }
 </style>
 </head>
 <body>
@@ -496,10 +574,11 @@
                 </div>
                 <button id="checkout-cta-btn" type="button">✅ Finalizar compra</button>
             </aside>
+            <div class="page-powered-footer">Powered by <strong>thIAguinho Soluções Digitais</strong></div>
         </main>
 
         <footer class="calculator-footer">
-            <button id="toggle-calc-btn" title="Mostrar/Ocultar Calculadora" aria-label="Abrir ou fechar caixa/calculadora"><span class="calc-toggle-label">🧮 Caixa</span><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg></button>
+            <button id="toggle-calc-btn" title="Mostrar/Ocultar Calculadora" aria-label="Abrir ou fechar caixa/calculadora"><span class="calc-toggle-label">✕ Fechar</span><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg></button>
             <div class="calculator-body">
                 <div class="calculator-display-wrapper">
                     <div id="active-item-display">Nenhum item selecionado</div>
