@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Mercador IA — Sua Compra</title>
-    <!-- Build consumidor: V3.13 · controles da lista em fluxo + calculadora sem sobreposição persistente -->
+    <!-- Build consumidor: V3.14 · emojis contextuais + termos compostos + pluralização segura -->
     <meta name="theme-color" content="#007aff"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="./manifest.webmanifest">
@@ -806,40 +806,92 @@ document.addEventListener('DOMContentLoaded', () => {
         purchaseLocationOptions: document.getElementById('purchase-location-options'),
     };
 
+    // Mercador IA V3.14 — emojis por contexto, com prioridade para termos compostos.
+    // Ex.: "batata doce" precisa vencer "batata"; "bolo de aniversário" precisa vencer "bolo".
     const emojiMap = {
-        'leite': '🥛', 'queijo': '🧀', 'manteiga': '🧈', 'ovo': '🥚', 'bacon': '🥓', 'pao': '🍞', 'pão': '🍞',
-        'baguete': '🥖', 'croissant': '🥐', 'pretzel': '🥨', 'bagel': '🥯', 'panqueca': '🥞', 'waffle': '🧇',
-        'arroz': '🍚', 'cereal': '🥣', 'feijao': '🫘', 'feijão': '🫘', 'macarrao': '🍝', 'macarrão': '🍝',
-        'massa': '🍝', 'ramen': '🍜', 'pao sirio': '🫓', 'pão sírio': '🫓', 'carne': '🥩', 'pernil': '🍖',
-        'frango': '🍗', 'peixe': '🐟', 'salsicha': '🌭', 'camarao': '🍤', 'camarão': '🍤', 'lula': '🦑',
-        'lagosta': '🦞', 'caranguejo': '🦀', 'ostra': '🦪', 'sushi': '🍣', 'maca': '🍎', 'maçã': '🍎',
-        'maca verde': '🍏', 'maçã verde': '🍏', 'pera': '🍐', 'pêra': '🍐', 'banana': '🍌', 'laranja': '🍊',
-        'limao': '🍋‍🟩', 'limão': '🍋‍🟩', 'uva': '🍇', 'morango': '🍓', 'melancia': '🍉', 'abacaxi': '🍍',
-        'manga': '🥭', 'pessego': '🍑', 'pêssego': '🍑', 'cereja': '🍒', 'kiwi': '🥝', 'melao': '🍈',
-        'melão': '🍈', 'coco': '🥥', 'mirtilo': '🫐', 'tomate': '🍅', 'cenoura': '🥕', 'batata': '🥔',
-        'batata doce': '🍠', 'cebola': '🧅', 'alho': '🧄', 'alface': '🥬', 'brocolis': '🥦', 'brócolis': '🥦',
-        'milho': '🌽', 'pepino': '🥒', 'berinjela': '🍆', 'abacate': '🥑', 'pimentao': '🫑', 'pimentão': '🫑',
-        'pimenta': '🌶️', 'cogumelo': '🍄', 'gengibre': '🫚', 'ervilha': '🫛', 'salada': '🥗', 'azeitona': '🫒',
-        'ervas': '🌿', 'hortela': '🍃', 'hortelã': '🍃', 'amendoim': '🥜', 'castanha': '🌰', 'sal': '🧂',
-        'oleo': '🫗', 'óleo': '🫗', 'mel': '🍯', 'enlatado': '🥫', 'conserva': '🫙', 'cafe': '☕️', 'café': '☕️',
-        'cha': '🍵', 'chá': '🍵', 'chimarrao': '🧉', 'chimarrão': '🧉', 'suco': '🧃', 'refrigerante': '🥤',
-        'agua': '💧', 'água': '💧', 'gelo': '🧊', 'cerveja': '🍺', 'vinho': '🍷', 'espumante': '🍾',
-        'whisky': '🥃', 'coquetel': '🍸', 'drink': '🍹', 'chocolate': '🍫', 'doce': '🍬', 'pirulito': '🍭',
-        'biscoito': '🍪', 'biscoito da sorte': '🥠', 'bolo': '🍰', 'bolo de aniversario': '🎂',
-        'bolo de aniversário': '🎂', 'cupcake': '🧁', 'torta': '🥧', 'sorvete': '🍦', 'sorvete de taca': '🍨',
-        'sorvete de taça': '🍨', 'raspadinha': '🍧', 'donut': '🍩', 'pudim': '🍮', 'pipoca': '🍿',
-        'pizza': '🍕', 'hamburguer': '🍔', 'hambúrguer': '🍔', 'batata frita': '🍟', 'sanduiche': '🥪',
-        'sanduíche': '🥪', 'taco': '🌮', 'burrito': '🌯', 'kebab': '🥙', 'falafel': '🧆', 'onigiri': '🍙',
-        'comida chinesa': '🥡', 'fondue': '🫕', 'sabao': '🧼', 'sabão': '🧼', 'detergente': '🧴', 'esponja': '🧽',
-        'limpeza': '🧹', 'vassoura': '🧹', 'balde': '🪣', 'cesto': '🧺', 'saco de lixo': '🗑️', 'shampoo': '🧴',
-        'papel': '🧻', 'papel higienico': '🧻', 'papel higiênico': '🧻', 'escova de dentes': '🪥',
-        'lamina de barbear': '🪒', 'lâmina de barbear': '🪒', 'curativo': '🩹', 'remedio': '💊',
-        'remédio': '💊', 'racao para pet': '🦴', 'ração para pet': '🦴', 'cigarro': '🚬', 'vela': '🕯️',
-        'lampada': '💡', 'lâmpada': '💡', 'pilha': '🔋', 'planta': '🪴', 'default': '🛒'
+        'leite condensado': '🥛', 'creme de leite': '🥛', 'leite': '🥛', 'iogurte': '🥛',
+        'requeijao': '🧀', 'requeijão': '🧀', 'queijo': '🧀', 'margarina': '🧈', 'manteiga': '🧈',
+        'ovo': '🥚', 'bacon': '🥓', 'presunto': '🥓', 'mortadela': '🥩', 'salame': '🥩',
+        'pao sirio': '🫓', 'pão sírio': '🫓', 'pao': '🍞', 'pão': '🍞', 'baguete': '🥖',
+        'croissant': '🥐', 'pretzel': '🥨', 'bagel': '🥯', 'panqueca': '🥞', 'waffle': '🧇',
+        'arroz': '🍚', 'cereal': '🥣', 'aveia': '🌾', 'farinha': '🌾', 'trigo': '🌾',
+        'feijao': '🫘', 'feijão': '🫘', 'macarrao': '🍝', 'macarrão': '🍝', 'massa': '🍝', 'ramen': '🍜',
+        'picanha': '🥩', 'coxao mole': '🥩', 'coxão mole': '🥩', 'acem': '🥩', 'acém': '🥩',
+        'fraldinha': '🥩', 'costela': '🥩', 'carne': '🥩', 'pernil': '🍖', 'paleta suina': '🍖',
+        'paleta suína': '🍖', 'linguica': '🌭', 'linguiça': '🌭', 'salsicha': '🌭', 'frango': '🍗',
+        'coxa sobrecoxa': '🍗', 'coxa/sobrecoxa': '🍗', 'peixe': '🐟', 'atum': '🐟', 'sardinha': '🐟',
+        'camarao': '🍤', 'camarão': '🍤', 'lula': '🦑', 'lagosta': '🦞', 'caranguejo': '🦀', 'ostra': '🦪', 'sushi': '🍣',
+        'maca verde': '🍏', 'maçã verde': '🍏', 'maca': '🍎', 'maçã': '🍎', 'pera': '🍐', 'pêra': '🍐',
+        'banana': '🍌', 'laranja': '🍊', 'limao': '🍋‍🟩', 'limão': '🍋‍🟩', 'uva': '🍇', 'morango': '🍓',
+        'melancia': '🍉', 'abacaxi': '🍍', 'manga': '🥭', 'pessego': '🍑', 'pêssego': '🍑', 'cereja': '🍒',
+        'kiwi': '🥝', 'melao': '🍈', 'melão': '🍈', 'mamao': '🍈', 'mamão': '🍈', 'coco': '🥥', 'mirtilo': '🫐',
+        'batata doce': '🍠', 'batata frita': '🍟', 'batata': '🥔', 'mandioca': '🍠', 'mandioquinha': '🥕',
+        'tomate': '🍅', 'cenoura': '🥕', 'cebola': '🧅', 'alho': '🧄', 'alface': '🥬', 'brocolis': '🥦',
+        'brócolis': '🥦', 'milho': '🌽', 'pepino': '🥒', 'berinjela': '🍆', 'abacate': '🥑',
+        'pimentao': '🫑', 'pimentão': '🫑', 'pimenta': '🌶️', 'cogumelo': '🍄', 'gengibre': '🫚',
+        'ervilha': '🫛', 'salada': '🥗', 'azeitona': '🫒', 'ervas': '🌿', 'hortela': '🍃', 'hortelã': '🍃',
+        'amendoim': '🥜', 'castanha': '🌰', 'pacoca': '🥜', 'paçoca': '🥜', 'sal': '🧂',
+        'azeite': '🫒', 'oleo': '🫗', 'óleo': '🫗', 'mel': '🍯', 'enlatado': '🥫', 'conserva': '🫙',
+        'molho de tomate': '🍅', 'molho': '🥫', 'catchup': '🍅', 'ketchup': '🍅', 'maionese': '🥚',
+        'cafe': '☕️', 'café': '☕️', 'cha': '🍵', 'chá': '🍵', 'chimarrao': '🧉', 'chimarrão': '🧉',
+        'suco': '🧃', 'refrigerante': '🥤', 'agua': '💧', 'água': '💧', 'gelo': '🧊', 'cerveja': '🍺',
+        'vinho': '🍷', 'espumante': '🍾', 'whisky': '🥃', 'coquetel': '🍸', 'drink': '🍹',
+        'barra de chocolate': '🍫', 'bombom': '🍫', 'chocolate': '🍫', 'doce de leite': '🍬', 'doce': '🍬',
+        'pirulito': '🍭', 'biscoito da sorte': '🥠', 'biscoito': '🍪', 'bolacha': '🍪', 'cookie': '🍪',
+        'bolo de aniversario': '🎂', 'bolo de aniversário': '🎂', 'bolo': '🍰', 'cupcake': '🧁', 'torta': '🥧',
+        'sorvete de taca': '🍨', 'sorvete de taça': '🍨', 'sorvete': '🍦', 'raspadinha': '🍧', 'donut': '🍩',
+        'rosquinha': '🍩', 'pudim': '🍮', 'pipoca': '🍿', 'pizza': '🍕', 'hamburguer': '🍔', 'hambúrguer': '🍔',
+        'sanduiche': '🥪', 'sanduíche': '🥪', 'taco': '🌮', 'burrito': '🌯', 'kebab': '🥙', 'falafel': '🧆',
+        'onigiri': '🍙', 'comida chinesa': '🥡', 'fondue': '🫕',
+        'papel higienico': '🧻', 'papel higiênico': '🧻', 'papel toalha': '🧻', 'papel': '🧻',
+        'sabao em po': '🧼', 'sabão em pó': '🧼', 'lava roupas': '🧼', 'sabonete': '🧼', 'sabao': '🧼', 'sabão': '🧼',
+        'amaciante': '🧺', 'detergente': '🧴', 'desinfetante': '🧴', 'agua sanitaria': '🧴', 'água sanitária': '🧴',
+        'multiuso': '🧴', 'limpeza': '🧹', 'esponja': '🧽', 'vassoura': '🧹', 'balde': '🪣', 'cesto': '🧺',
+        'saco de lixo': '🗑️', 'shampoo': '🧴', 'condicionador': '🧴', 'desodorante': '🧴',
+        'creme dental': '🪥', 'pasta de dente': '🪥', 'escova dental': '🪥', 'escova de dentes': '🪥',
+        'lamina de barbear': '🪒', 'lâmina de barbear': '🪒', 'barbeador': '🪒', 'curativo': '🩹',
+        'remedio': '💊', 'remédio': '💊', 'fralda': '👶', 'racao para pet': '🦴', 'ração para pet': '🦴',
+        'racao': '🦴', 'ração': '🦴', 'petisco': '🦴', 'carvao': '🔥', 'carvão': '🔥',
+        'cigarro': '🚬', 'vela': '🕯️', 'lampada': '💡', 'lâmpada': '💡', 'pilha': '🔋', 'planta': '🪴',
+        'default': '🛒'
     };
-    
-    const getEmojiForItem = (nome) => { const nomeLower = nome.toLowerCase(); for (const key in emojiMap) if (nomeLower.includes(key)) return emojiMap[key]; return emojiMap.default; };
-    
+
+    const normalizeEmojiToken = (token) => {
+        const irregular = { paes:'pao', ovos:'ovo', papeis:'papel' };
+        if (irregular[token]) return irregular[token];
+        if (token.length > 4 && token.endsWith('oes')) return `${token.slice(0, -3)}ao`;
+        if (token.length > 4 && token.endsWith('ais')) return `${token.slice(0, -3)}al`;
+        if (token.length > 4 && token.endsWith('eis')) return `${token.slice(0, -3)}el`;
+        if (token.length > 3 && token.endsWith('s')) return token.slice(0, -1);
+        return token;
+    };
+
+    const normalizeEmojiPhrase = (value) => String(value || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+        .split(/\s+/).filter(Boolean).map(normalizeEmojiToken).join(' ');
+
+    // Mais específico primeiro. Assim "batata doce" é avaliada antes de "batata".
+    // A comparação é por palavras completas, evitando falsos positivos por simples substring.
+    const emojiEntries = Object.entries(emojiMap)
+        .filter(([key]) => key !== 'default')
+        .map(([key, emoji]) => ({ emoji, phrase: normalizeEmojiPhrase(key) }))
+        .filter((entry, index, all) => entry.phrase && all.findIndex((x) => x.phrase === entry.phrase) === index)
+        .sort((a, b) => {
+            const wordDiff = b.phrase.split(' ').length - a.phrase.split(' ').length;
+            return wordDiff || b.phrase.length - a.phrase.length;
+        });
+
+    const getEmojiForItem = (nome) => {
+        const phrase = normalizeEmojiPhrase(nome);
+        if (!phrase) return emojiMap.default;
+        const exact = emojiEntries.find((entry) => entry.phrase === phrase);
+        if (exact) return exact.emoji;
+        const padded = ` ${phrase} `;
+        const contextual = emojiEntries.find((entry) => padded.includes(` ${entry.phrase} `));
+        return contextual?.emoji || emojiMap.default;
+    };
+
     const normalizeItemName = (value) => {
         if (window.MercadorIA?.normalizeText) return window.MercadorIA.normalizeText(value || '');
         return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -1421,7 +1473,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const actions = item.status === 'faltando'
               ? `<button type="button" class="item-action-btn primary" data-item-select="${item.id}">🧮 Lançar preço</button><button type="button" class="item-action-btn warn" data-item-defer="${item.id}">⏸ Adiar</button>`
               : `<button type="button" class="item-action-btn primary" data-item-restore="${item.id}">↩ Voltar à lista</button><span></span>`;
-            li.innerHTML = `<span class="item-emoji">${item.emoji || getEmojiForItem(item.nome)}</span><div class="item-details"><div class="item-main-head"><div class="item-name">${safeName}</div></div>${priceInfo}<div class="item-state-hint">${hint}</div><div class="item-actions-inline">${actions}<button type="button" class="item-action-btn danger" data-item-delete="${item.id}">🗑 Excluir</button></div></div>`;
+            li.innerHTML = `<span class="item-emoji">${getEmojiForItem(item.nome)}</span><div class="item-details"><div class="item-main-head"><div class="item-name">${safeName}</div></div>${priceInfo}<div class="item-state-hint">${hint}</div><div class="item-actions-inline">${actions}<button type="button" class="item-action-btn danger" data-item-delete="${item.id}">🗑 Excluir</button></div></div>`;
             return li;
         },
         reports: () => {

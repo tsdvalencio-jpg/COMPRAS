@@ -1,7 +1,7 @@
 {
   "name": "Mercador IA",
-  "version": "3.13.0",
-  "build": "mercador-ia-v3.13-lista-livre-sem-overlays",
+  "version": "3.14.0",
+  "build": "mercador-ia-v3.14-emojis-contextuais",
   "date": "2026-09-07",
   "documentEngine": "7.6.1-source-proof-club-reconcile",
   "cardResolver": "5.1.0-card-proof",

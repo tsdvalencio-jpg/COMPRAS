@@ -1,4 +1,4 @@
-const CACHE = 'mercador-ia-shell-v3.13.0-lista-livre';
+const CACHE = 'mercador-ia-shell-v3.14.0-emojis-contextuais';
 
 // Shell enxuto do consumidor. O painel Admin/PDF e o Card Resolver são carregados
 // somente quando um administrador realmente os acessa — não pesam no PWA do usuário.
